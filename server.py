@@ -365,6 +365,11 @@ async def get_stats():
 
 # --- Manual Training Data API ---
 
+@app.get("/")
+async def get_voice_ui():
+    """Serve the main voice receptionist UI."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "voice_simulation.html"))
+
 @app.get("/training")
 async def get_training_ui():
     """Serve the manual training data entry UI."""

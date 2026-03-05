@@ -188,7 +188,7 @@
         // Fetch configuration from backend on load
         async function fetchConfig() {
             try {
-                const res = await fetch('http://localhost:8000/config');
+                const res = await fetch('/config');
                 const config = await res.json();
                 if (config.elevenlabs_api_key) {
                     elevenLabsApiKey = config.elevenlabs_api_key;
