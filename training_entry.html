@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="el">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Training Data Entry - Cypriot Dialect</title>
+    <style>
+        :root {
+            --primary: #c39a3f;
+            --primary-dark: #91712a;
+            --bg: #f8f9fa;
+            --text: #333;
+            --border: #ccc;
+            --user-bg: #e3f2fd;
+            --ai-bg: #fff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        h1 {
+            color: var(--primary-dark);
+            text-align: center;
+            margin-top: 0;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 10px;
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .conversation-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .message-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .message-bubble {
+            flex-grow: 1;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .user-bubble {
+            background-color: var(--user-bg);
+            border-left: 4px solid #1976d2;
+        }
+
+        .ai-bubble {
+            background-color: var(--ai-bg);
+            border-left: 4px solid var(--primary);
+        }
+
+        textarea {
+            width: 100%;
+            border: none;
+            background: transparent;
+            font-family: inherit;
+            font-size: 16px;
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        textarea:focus {
+            outline: none;
+        }
+
+        .role-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .user-bubble .role-label {
+            color: #1976d2;
+        }
+
+        .ai-bubble .role-label {
+            color: var(--primary-dark);
+        }
+
+        .btn-remove {
+            background: #ffebee;
+            color: #d32f2f;
+            border: 1px solid #ffcdd2;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+
+        .btn-remove:hover {
+            background: #ffcdd2;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .btn-add-user {
+            background: #1976d2;
+            color: white;
+        }
+
+        .btn-add-ai {
+            background: var(--primary);
+            color: white;
+        }
+
+        .save-section {
+            border-top: 2px solid #eee;
+            padding-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .metadata-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .metadata-row select {
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-size: 16px;
+            flex-grow: 1;
+        }
+
+        .btn-save {
+            background: #2e7d32;
+            color: white;
+            font-size: 18px;
+            padding: 15px;
+            width: 100%;
+        }
+
+        #notification {
+            display: none;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #d32f2f;
+            border: 1px solid #ffcdd2;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>📝 Manual AI Training Data Entry</h1>
+        <p class="subtitle">Enter expected customer questions (in Cypriot dialect) and the ideal AI response to train
+            the model.</p>
+
+        <div class="conversation-container" id="conversationBox">
+            <!-- Initial empty user message -->
+            <div class="message-row">
+                <div class="message-bubble user-bubble">
+                    <span class="role-label">🧑 Customer (User)</span>
+                    <textarea placeholder="e.g. Έχω πρόβλημα με το κλαρκ, κόλλησε τζιαι έν παίρνει μπόι..."></textarea>
+                </div>
+                <button class="btn-remove" onclick="removeRow(this)">X</button>
+            </div>
+
+            <!-- Initial empty AI message -->
+            <div class="message-row">
+                <div class="message-bubble ai-bubble">
+                    <span class="role-label">🤖 AI Receptionist</span>
+                    <textarea
+                        placeholder="Μάλιστα, καταλαβαίνω. Σας παρακαλώ, μπορείτε να μου πείτε τον σειριακό αριθμό του μηχανήματος;"></textarea>
+                </div>
+                <button class="btn-remove" onclick="removeRow(this)">X</button>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn-add-user" onclick="addMessage('user')">+ Add Customer message</button>
+            <button class="btn-add-ai" onclick="addMessage('model')">+ Add AI message</button>
+        </div>
+
+        <div class="save-section">
+            <div class="metadata-row">
+                <label for="department">Routing (Optional):</label>
+                <select id="department">
+                    <option value="">-- No specific routing --</option>
+                    <option value="REPAIRS">REPAIRS (Technical Support)</option>
+                    <option value="SPARE_PARTS">SPARE_PARTS (Antallaktika)</option>
+                    <option value="ACCOUNTING">ACCOUNTING (Logistirio)</option>
+                    <option value="SALES">SALES</option>
+                </select>
+            </div>
+            <button class="btn-save" onclick="saveConversation()">💾 Save Conversation to Database</button>
+        </div>
+
+        <div id="notification"></div>
+    </div>
+
+    <script>
+        function addMessage(role) {
+            const container = document.getElementById('conversationBox');
+            const row = document.createElement('div');
+            row.className = 'message-row';
+
+            const isUser = role === 'user';
+            const bubbleClass = isUser ? 'user-bubble' : 'ai-bubble';
+            const label = isUser ? '🧑 Customer (User)' : '🤖 AI Receptionist';
+            const placeholder = isUser ? "Customer says..." : "AI responds...";
+
+            row.innerHTML = `
+            <div class="message-bubble ${bubbleClass}" data-role="${role}">
+                <span class="role-label">${label}</span>
+                <textarea placeholder="${placeholder}"></textarea>
+            </div>
+            <button class="btn-remove" onclick="removeRow(this)">X</button>
+        `;
+            container.appendChild(row);
+        }
+
+        function removeRow(btn) {
+            btn.parentElement.remove();
+        }
+
+        function showNotification(msg, isSuccess) {
+            const notif = document.getElementById('notification');
+            notif.textContent = msg;
+            notif.className = isSuccess ? 'success' : 'error';
+            notif.style.display = 'block';
+            setTimeout(() => {
+                notif.style.display = 'none';
+            }, 3000);
+        }
+
+        async function saveConversation() {
+            const rows = document.querySelectorAll('.message-bubble');
+            const messages = [];
+
+            rows.forEach(bubble => {
+                const role = bubble.classList.contains('user-bubble') ? 'user' : 'model';
+                const content = bubble.querySelector('textarea').value.trim();
+                if (content !== "") {
+                    messages.push({ role, content });
+                }
+            });
+
+            if (messages.length === 0) {
+                showNotification("Please enter at least one message.", false);
+                return;
+            }
+
+            const department = document.getElementById('department').value || null;
+
+            const payload = {
+                messages: messages,
+                department: department
+            };
+
+            try {
+                const response = await fetch('/api/training-conversation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    showNotification("✅ Saved successfully!", true);
+                    // Clear the textareas for the next entry
+                    document.querySelectorAll('textarea').forEach(ta => ta.value = '');
+                    document.getElementById('department').value = '';
+                } else {
+                    const errData = await response.json();
+                    showNotification("❌ Error: " + (errData.detail || "Unknown error"), false);
+                }
+            } catch (e) {
+                showNotification("❌ Network error saving conversation.", false);
+            }
+        }
+    </script>
+
+</body>
+
+</html>

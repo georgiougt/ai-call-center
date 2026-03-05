@@ -1,0 +1,27 @@
+# Environment & Secrets
+.env
+google-credentials.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# SQLite (no longer needed - using Supabase)
+call_center.db
+
+# Training data exports
+training_data.jsonl
+validation_data.jsonl
+tuned_model_info.json
+
+# Repair requests JSON (legacy)
+repair_requests.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
