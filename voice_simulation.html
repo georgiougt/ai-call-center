@@ -7,115 +7,209 @@
     <title>AI Call Center - Voice Simulation</title>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1a1a1a;
-            color: #ffffff;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background-color: #0d0d0d;
+            background-image: radial-gradient(circle at center, #1a1a1a 0%, #0d0d0d 100%);
+            color: #e0e0e0;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            overflow-x: hidden;
+        }
+
+        h1 {
+            font-weight: 300;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 30px;
+            text-transform: uppercase;
         }
 
         #status {
-            font-size: 1.2rem;
+            font-size: 1rem;
             margin-bottom: 20px;
-            color: #ccc;
+            color: #888;
             height: 1.5em;
-            /* fixed height to prevent jump */
+            transition: all 0.3s ease;
         }
 
         #conversation {
-            width: 80%;
-            max-width: 600px;
-            height: 400px;
+            width: 90%;
+            max-width: 700px;
+            height: 450px;
             overflow-y: auto;
-            border: 1px solid #333;
-            padding: 20px;
-            border-radius: 8px;
-            background-color: #2a2a2a;
-            margin-bottom: 20px;
+            border: 1px solid rgba(191, 149, 63, 0.2);
+            padding: 25px;
+            border-radius: 16px;
+            background: rgba(30, 30, 30, 0.6);
+            backdrop-filter: blur(10px);
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            scrollbar-width: thin;
+            scrollbar-color: #bf953f #1a1a1a;
+        }
+
+        #conversation::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #conversation::-webkit-scrollbar-thumb {
+            background: #bf953f;
+            border-radius: 10px;
         }
 
         .message {
-            margin-bottom: 10px;
-            padding: 10px;
-            border-radius: 5px;
+            margin-bottom: 15px;
+            padding: 12px 18px;
+            border-radius: 12px;
+            max-width: 80%;
+            line-height: 1.5;
+            font-size: 0.95rem;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .ai {
-            background-color: #005f73;
-            text-align: left;
+            background: rgba(191, 149, 63, 0.1);
+            border-left: 3px solid #bf953f;
+            color: #fcf6ba;
+            align-self: flex-start;
+            margin-right: auto;
         }
 
         .user {
-            background-color: #94d2bd;
-            color: #000;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            align-self: flex-end;
+            margin-left: auto;
             text-align: right;
+        }
+
+        .user-finalized {
+            background: rgba(191, 149, 63, 0.8);
+            color: #000;
+            font-weight: 500;
         }
 
         #controls {
             display: flex;
-            gap: 10px;
+            gap: 15px;
             flex-direction: column;
             align-items: center;
-            width: 100%;
+            width: 90%;
+            max-width: 700px;
         }
 
-        #input-area {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
+        .settings-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 12px;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         button {
-            padding: 10px 20px;
+            padding: 12px 28px;
             font-size: 1rem;
+            font-weight: 600;
             cursor: pointer;
             border: none;
-            border-radius: 5px;
-            transition: background-color 0.3s;
+            border-radius: 30px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         #startBtn {
-            background-color: #ee9b00;
-            color: white;
+            background: linear-gradient(135deg, #bf953f, #b38728);
+            color: #000;
+            box-shadow: 0 4px 15px rgba(179, 135, 40, 0.3);
         }
 
         #startBtn:hover {
-            background-color: #ca8200;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(179, 135, 40, 0.5);
+            filter: brightness(1.1);
         }
 
-        input[type="text"] {
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #555;
-            background: #333;
-            color: white;
-            width: 300px;
+        input[type="text"],
+        input[type="password"],
+        select {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(191, 149, 63, 0.3);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            border-color: #bf953f;
         }
 
         .listening {
-            animation: pulse 1.5s infinite;
-            color: #ee9b00 !important;
+            color: #bf953f !important;
+            text-shadow: 0 0 10px rgba(191, 149, 63, 0.5);
         }
 
         .error {
             color: #ff4d4d !important;
         }
 
-        @keyframes pulse {
-            0% {
-                opacity: 1;
-            }
+        /* Thinking animation */
+        .typing {
+            display: flex;
+            gap: 4px;
+            padding: 10px;
+        }
 
-            50% {
-                opacity: 0.5;
-            }
+        .dot {
+            width: 6px;
+            height: 6px;
+            background: #bf953f;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
 
+        .dot:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .dot:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
             100% {
-                opacity: 1;
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1.0);
             }
         }
     </style>
@@ -128,41 +222,38 @@
     <div id="conversation"></div>
 
     <div id="controls">
-        <div
-            style="margin-bottom: 10px; border: 1px solid #555; padding: 10px; border-radius: 5px; width: 100%; box-sizing: border-box;">
-            <strong>Voice Settings</strong>
-            <div style="margin-top: 5px;">
-                <label><input type="radio" name="voiceProvider" value="browser" checked onclick="toggleVoiceSettings()">
-                    Browser</label>
-                <label><input type="radio" name="voiceProvider" value="elevenlabs" onclick="toggleVoiceSettings()">
-                    ElevenLabs</label>
+        <div class="settings-card">
+            <strong style="color: #bf953f; font-size: 0.8rem; text-transform: uppercase;">Voice Settings</strong>
+            <div style="margin-top: 10px; display: flex; gap: 20px;">
+                <label style="cursor: pointer;"><input type="radio" name="voiceProvider" value="browser" checked
+                        onclick="toggleVoiceSettings()"> Browser</label>
+                <label style="cursor: pointer;"><input type="radio" name="voiceProvider" value="elevenlabs"
+                        onclick="toggleVoiceSettings()"> ElevenLabs</label>
             </div>
 
-            <div id="browserSettings" style="margin-top: 10px;">
-                <select id="voiceSelect"
-                    style="padding: 5px; width: 100%; box-sizing: border-box; background: #333; color: white; border: 1px solid #555;"></select>
+            <div id="browserSettings" style="margin-top: 15px;">
+                <select id="voiceSelect" style="width: 100%;"></select>
             </div>
 
-            <div id="elevenLabsSettings" style="display:none; margin-top: 10px; flex-direction: column; gap: 5px;">
-                <input type="password" id="xiApiKey" placeholder="ElevenLabs API Key"
-                    style="width: 100%; box-sizing: border-box;">
+            <div id="elevenLabsSettings" style="display:none; margin-top: 15px; flex-direction: column; gap: 10px;">
+                <input type="password" id="xiApiKey" placeholder="ElevenLabs API Key">
                 <input type="text" id="xiVoiceId" placeholder="Voice ID (default: 21m00Tcm4TlvDq8ikWAM)"
-                    value="21m00Tcm4TlvDq8ikWAM" style="width: 100%; box-sizing: border-box;">
-                <small style="color: #aaa;">Get a key from <a href="https://elevenlabs.io" target="_blank"
-                        style="color: #ee9b00;">elevenlabs.io</a>.</small>
+                    value="21m00Tcm4TlvDq8ikWAM">
+                <small style="color: #888;">Get a key from <a href="https://elevenlabs.io" target="_blank"
+                        style="color: #bf953f; text-decoration: none;">elevenlabs.io</a></small>
             </div>
         </div>
 
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 15px; margin-top: 10px;">
             <button id="startBtn" onclick="startCall()">Start Call</button>
             <button id="downloadBtn" onclick="downloadTranscript()"
-                style="background-color: #444; display:none;">Download Log</button>
+                style="background: #222; color: #aaa; display:none; border: 1px solid #444;">Download Log</button>
         </div>
 
-        <div id="input-area" style="display:none;">
-            <input type="text" id="textInput" placeholder="Type here if voice fails..."
+        <div id="input-area" style="display:none; width: 100%; gap: 10px; margin-top: 10px;">
+            <input type="text" id="textInput" placeholder="Type here if voice fails..." style="flex: 1;"
                 onkeypress="handleKeyPress(event)">
-            <button onclick="sendText()">Send</button>
+            <button onclick="sendText()" style="background: #333; color: #fff; padding: 10px 20px;">Send</button>
         </div>
     </div>
 
@@ -280,14 +371,26 @@
 
         let currentTranscriptDiv = null;
 
+        let reconnectionAttempts = 0;
+        const MAX_RECONNECT = 3;
+
         function startListening() {
             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                 const host = window.location.host || 'localhost:8000';
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                audioSocket = new WebSocket(`${protocol}//${host}/listen`);
+
+                try {
+                    audioSocket = new WebSocket(`${protocol}//${host}/listen`);
+                } catch (e) {
+                    console.error("Socket creation failed:", e);
+                    statusDiv.textContent = "Socket Error. Retrying...";
+                    setTimeout(startListening, 1000);
+                    return;
+                }
 
                 audioSocket.onopen = () => {
-                    statusDiv.textContent = "Listening... (Speak now)";
+                    reconnectionAttempts = 0;
+                    statusDiv.textContent = "LISTENING...";
                     statusDiv.className = 'listening';
 
                     mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
@@ -341,12 +444,16 @@
 
                 audioSocket.onerror = error => {
                     console.error("WebSocket Error:", error);
-                    statusDiv.textContent = "Error connecting to backend STT socket.";
-                    statusDiv.className = 'error';
+                    statusDiv.textContent = "Connection lost. Reconnecting...";
                 };
 
-                audioSocket.onclose = () => {
+                audioSocket.onclose = (event) => {
                     statusDiv.classList.remove('listening');
+                    if (!isProcessing && reconnectionAttempts < MAX_RECONNECT && event.code !== 1000) {
+                        reconnectionAttempts++;
+                        console.log(`Reconnecting... attempt ${reconnectionAttempts}`);
+                        setTimeout(startListening, 1000);
+                    }
                 };
 
             }).catch(err => {
@@ -781,11 +888,11 @@
             // Add to history immediately so history reflects User input
             history.push({ role: 'user', content: userText });
 
-            // Show a visual "Thinking..." bubble
+            // Show a visual "Thinking..." bubble with Dots
             const thinkingDiv = document.createElement('div');
-            thinkingDiv.className = 'message ai';
-            thinkingDiv.textContent = '...';
+            thinkingDiv.className = 'message ai typing';
             thinkingDiv.id = 'thinkingBubble';
+            thinkingDiv.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
             conversationDiv.appendChild(thinkingDiv);
             conversationDiv.scrollTop = conversationDiv.scrollHeight;
 
@@ -890,7 +997,11 @@
                 }
 
                 try {
-                    const res = await fetch('http://localhost:8000/chat', {
+                    const host = window.location.host || 'localhost:8000';
+                    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+                    const baseUrl = `${protocol}//${host}`;
+
+                    const res = await fetch(`${baseUrl}/chat`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
