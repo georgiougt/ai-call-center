@@ -14,6 +14,7 @@ import threading
 from dotenv import load_dotenv
 
 from google.cloud import speech
+from google.oauth2 import service_account
 
 import database as db
 
@@ -32,8 +33,17 @@ else:
 
 # Configure Google Speech-to-Text
 try:
-    speech_client = speech.SpeechClient()
-    print("[OK] Google Speech-to-Text client initialized.")
+    credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+    if credentials_json:
+        # Load credentials from JSON string (Ideal for Render/Cloud)
+        creds_info = json.loads(credentials_json)
+        credentials = service_account.Credentials.from_service_account_info(creds_info)
+        speech_client = speech.SpeechClient(credentials=credentials)
+        print("[OK] Google Speech-to-Text initialized via Environment Variable.")
+    else:
+        # Fallback to local file path
+        speech_client = speech.SpeechClient()
+        print("[OK] Google Speech-to-Text initialized via default credentials (file).")
 except Exception as e:
     print(f"WARNING: Google Speech-to-Text client failed to initialize: {e}")
     speech_client = None
