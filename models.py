@@ -22,6 +22,12 @@ class RepairRequestCreate(BaseModel):
     issue: Optional[str] = None
 
 
+class ChatRequest(BaseModel):
+    history: List[MessageCreate]
+    message: str
+    session_id: Optional[str] = None
+
+
 class RepairRequestUpdate(BaseModel):
     name: str
     serial: str
