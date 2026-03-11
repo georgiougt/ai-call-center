@@ -17,6 +17,10 @@ from google.cloud import speech
 from google.oauth2 import service_account
 
 import database as db
+from models import (
+    MessageCreate, ChatRequest, ManualConversation, 
+    RepairRequestCreate, RepairRequestUpdate, MessageUpdate
+)
 
 load_dotenv()
 
@@ -77,20 +81,8 @@ async def get_config():
 
 
 
-# --- Request / Response Models ---
-
-class Message(BaseModel):
-    role: str
-    content: str
-
-class ChatRequest(BaseModel):
-    history: List[Message]
-    message: str
-    session_id: Optional[str] = None  # Frontend can pass a session ID
-
-class ManualConversation(BaseModel):
-    messages: List[Message]
-    department: Optional[str] = None
+# --- Chat Models (Inherited from models.py) ---
+# Removed local definitions to avoid NameError and inconsistency
 
 
 # SYSTEM PROMPT
@@ -103,7 +95,7 @@ def get_system_instructions():
             return f.read().strip()
     except Exception:
         return "You are a helpful AI assistant."
-def mock_llm_logic(user_input, history: List[Message]):
+def mock_llm_logic(user_input, history: List[MessageCreate]):
     if not history:
         return "Καλησπέρα σας, καλέσατε την Γιαννάκης Σκεμπετζής και Υιοί. Πώς μπορώ να σας εξυπηρετήσω;"
     normalized_text = user_input.lower()
@@ -401,6 +393,49 @@ async def save_training_conversation(data: ManualConversation):
         await db.add_message(conversation_id, msg.role, msg.content)
         
     return {"status": "success", "conversation_id": conversation_id}
+
+
+# --- Database Correction API (for Correction UI) ---
+
+@app.get("/admin")
+async def get_admin_ui():
+    """Serve the admin database correction UI."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "admin.html"))
+
+@app.patch("/api/repair-requests/{request_id}")
+async def update_repair_request_endpoint(request_id: int, data: RepairRequestUpdate):
+    """Update a repair request."""
+    await db.update_repair_request(request_id, data.name, data.serial, data.issue)
+    return {"status": "success"}
+
+@app.patch("/api/messages/{message_id}")
+async def update_message_endpoint(message_id: int, data: MessageUpdate):
+    """Update a message transcript."""
+    await db.update_message(message_id, data.content)
+    return {"status": "success"}
+
+@app.delete("/api/conversations/{conversation_id}")
+async def delete_conversation_endpoint(conversation_id: int):
+    """Delete a conversation and all its messages."""
+    await db.delete_conversation(conversation_id)
+    return {"status": "success"}
+
+@app.post("/api/repair-requests")
+async def create_manual_repair_request_endpoint(data: RepairRequestCreate):
+    """Manually create a repair request for a conversation."""
+    request_id = await db.save_repair_request(
+        name=data.name,
+        serial=data.serial,
+        issue=data.issue,
+        conversation_id=data.conversation_id
+    )
+    return {"status": "success", "id": request_id}
+
+@app.delete("/api/repair-requests/{request_id}")
+async def delete_repair_request_endpoint(request_id: int):
+    """Delete a specific repair request entry."""
+    await db.delete_repair_request(request_id)
+    return {"status": "success"}
 
 
 if __name__ == "__main__":

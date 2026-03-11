@@ -273,3 +273,39 @@ async def get_message_count() -> int:
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT COUNT(*) FROM messages")
         return row[0]
+
+
+# --- Update & Delete Operations (for Correction UI) ---
+
+async def update_repair_request(request_id: int, name: str, serial: str, issue: Optional[str] = None):
+    """Update an existing repair request."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE repair_requests SET name = $1, serial = $2, issue = $3 WHERE id = $4",
+            name, serial, issue, request_id
+        )
+
+
+async def update_message(message_id: int, content: str):
+    """Update the content of a message (e.g., if AI misheard STT)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE messages SET content = $1 WHERE id = $2",
+            content, message_id
+        )
+
+
+async def delete_conversation(conversation_id: int):
+    """Delete a conversation and all its messages (via CASCADE)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM conversations WHERE id = $1", conversation_id)
+
+
+async def delete_repair_request(request_id: int):
+    """Delete a specific repair request entry."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM repair_requests WHERE id = $1", request_id)

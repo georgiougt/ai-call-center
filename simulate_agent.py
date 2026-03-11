@@ -31,7 +31,7 @@ def mock_llm_response(history):
     
     # 1. Greeting (if history is empty or just system prompt)
     if len(history) <= 1:
-        return "Καλησπέρα σας, καλέσατε την Γιαννάκης Σκεμπετζής και Υἱοί. Πώς μπορώ να σας εξυπηρετήσω?"
+        return "Καλησπέρα σας, καλέσατε την Γιαννάκης Σκεμπετζής και Υιοί. Πώς μπορώ να σας εξυπηρετήσω?"
 
     # 2. Language Detection & Switching
     is_english = any(word in last_user_message for word in ["hello", "hi", "english", "speak", "need", "want", "help"])

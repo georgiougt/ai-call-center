@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="el">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - AI Call Center</title>
+    <style>
+        :root {
+            --primary: #bf953f;
+            --primary-light: #fcf6ba;
+            --primary-dark: #aa771c;
+            --bg: #0d0d0d;
+            --card-bg: rgba(30, 30, 30, 0.6);
+            --text: #e0e0e0;
+            --border: rgba(191, 149, 63, 0.2);
+            --user-bg: rgba(255, 255, 255, 0.05);
+            --ai-bg: rgba(191, 149, 63, 0.1);
+            --error: #ff4d4d;
+            --success: #2e7d32;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background-color: var(--bg);
+            background-image: radial-gradient(circle at center, #1a1a1a 0%, #0d0d0d 100%);
+            color: var(--text);
+            margin: 0;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        h1 {
+            font-weight: 300;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .tab {
+            padding: 10px 25px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: #888;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 15px;
+            margin-bottom: 5px;
+        }
+
+        .card-id {
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        .card-date {
+            color: #666;
+            font-size: 0.75rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 0.75rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input, textarea {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: #fff;
+            padding: 10px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, textarea:focus {
+            border-color: var(--primary);
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        .btn-save {
+            background: var(--primary);
+            color: #000;
+        }
+
+        .btn-view {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-delete {
+            background: rgba(255, 77, 77, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(255, 77, 77, 0.2);
+            flex: 0;
+            padding: 10px 15px;
+        }
+
+        button:hover {
+            filter: brightness(1.2);
+        }
+
+        /* Modal / Overlay */
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        #modal {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 800px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .msg-bubble {
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            position: relative;
+        }
+
+        .msg-user {
+            background: var(--user-bg);
+            border-left: 4px solid #444;
+        }
+
+        .msg-ai {
+            background: var(--ai-bg);
+            border-left: 4px solid var(--primary);
+        }
+
+        .msg-role {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            color: #888;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .msg-content {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: #fff;
+            resize: none;
+            font-family: inherit;
+            font-size: 0.95rem;
+            min-height: 40px;
+        }
+
+        .msg-save-btn {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            background: var(--primary);
+            color: #000;
+            font-size: 0.6rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .msg-bubble:hover .msg-save-btn {
+            opacity: 1;
+        }
+
+        #notification {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 25px;
+            border-radius: 30px;
+            z-index: 2000;
+            display: none;
+            font-weight: 600;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+
+        .success { background: var(--success); color: #fff; }
+        .error { background: var(--error); color: #fff; }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: var(--primary);
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🛠️ Database Correction Portal</h1>
+            <p class="subtitle">Review and fix repair requests or conversation transcripts.</p>
+        </header>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('repairs', this)">Repair Requests</div>
+            <div class="tab" onclick="switchTab('calls', this)">All Calls</div>
+        </div>
+
+        <div id="main-list" class="grid">
+            <div class="loading">Loading records...</div>
+        </div>
+    </div>
+
+    <!-- Conversation View Modal -->
+    <div id="overlay" onclick="closeModal()">
+        <div id="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Conversation Transcript</h3>
+                <button class="btn-delete" style="padding: 5px 10px;" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modal-content">
+                <!-- Messages populate here -->
+            </div>
+            <div style="padding: 20px; border-top: 1px solid var(--border); text-align: center;">
+                <p style="font-size: 0.8rem; color: #666;">Changes to messages are saved individually.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification"></div>
+
+    <script>
+        let currentMode = 'repairs';
+        let allData = [];
+
+        async function fetchData() {
+            const container = document.getElementById('main-list');
+            container.innerHTML = '<div class="loading">Loading records...</div>';
+            
+            try {
+                const endpoint = currentMode === 'repairs' ? '/repair-requests' : '/conversations';
+                const res = await fetch(endpoint);
+                const data = await res.json();
+                allData = currentMode === 'repairs' ? data.repair_requests : data.conversations;
+                renderData();
+            } catch (e) {
+                showNotif("Error fetching data", false);
+            }
+        }
+
+        function renderData() {
+            const container = document.getElementById('main-list');
+            if (allData.length === 0) {
+                container.innerHTML = `<div class="loading">No ${currentMode} found.</div>`;
+                return;
+            }
+
+            if (currentMode === 'repairs') {
+                container.innerHTML = allData.map(req => `
+                    <div class="card" id="req-card-${req.id}">
+                        <div class="card-header">
+                            <span class="card-id">Repair #${req.id}</span>
+                            <span class="card-date">${new Date(req.timestamp).toLocaleString('el-GR')}</span>
+                        </div>
+                        <div class="input-group">
+                            <label>Customer Name</label>
+                            <input type="text" value="${req.name}" id="name-${req.id}">
+                        </div>
+                        <div class="input-group">
+                            <label>Serial Number</label>
+                            <input type="text" value="${req.serial}" id="serial-${req.id}">
+                        </div>
+                        <div class="input-group">
+                            <label>Issue Description</label>
+                            <textarea id="issue-${req.id}">${req.issue || ''}</textarea>
+                        </div>
+                        <div class="btn-row">
+                            <button class="btn-save" onclick="saveRequest(${req.id})">Save Changes</button>
+                            <button class="btn-view" onclick="viewConversation(${req.conversation_id})">View Chat</button>
+                            <button class="btn-delete" onclick="deleteRepair(${req.id})">🗑️</button>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = allData.map(conv => `
+                    <div class="card" id="conv-card-${conv.id}">
+                        <div class="card-header">
+                            <span class="card-id">Call #${conv.id}</span>
+                            <span class="card-date">${new Date(conv.created_at).toLocaleString('el-GR')}</span>
+                        </div>
+                        <div style="font-size: 0.9rem; color: #888; flex-grow: 1;">
+                            <div>Session ID: ${conv.session_id.substring(0, 15)}...</div>
+                            <div>Language: ${conv.language}</div>
+                            <div>Dept: ${conv.department_routed || 'N/A'}</div>
+                            <div>Messages: ${conv.message_count}</div>
+                            ${conv.has_repair_data ? '<div style="color: var(--primary); margin-top: 5px;">✅ Has Repair Data</div>' : '<div style="color: #666; margin-top: 5px;">❌ No Repair Data</div>'}
+                        </div>
+                        <div class="btn-row">
+                            <button class="btn-view" onclick="viewConversation(${conv.id})">View Chat</button>
+                            ${!conv.has_repair_data ? `<button class="btn-save" style="background: rgba(191, 149, 63, 0.2); color: var(--primary);" onclick="manualCreateRepair(${conv.id})">Capture Repair</button>` : ''}
+                            <button class="btn-delete" onclick="deleteConv(${conv.id})">🗑️</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function switchTab(mode, el) {
+            if (currentMode === mode) return;
+            currentMode = mode;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+            fetchData();
+        }
+
+        async function saveRequest(id) {
+            const payload = {
+                name: document.getElementById(`name-${id}`).value,
+                serial: document.getElementById(`serial-${id}`).value,
+                issue: document.getElementById(`issue-${id}`).value
+            };
+
+            try {
+                const res = await fetch(`/api/repair-requests/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) showNotif("Request updated!", true);
+                else showNotif("Failed to save", false);
+            } catch (e) { showNotif("Network error", false); }
+        }
+
+        async function manualCreateRepair(convId) {
+            const name = prompt("Enter Customer Name:");
+            if (!name) return;
+            const serial = prompt("Enter Serial Number (or N/A):");
+            if (!serial) return;
+            const issue = prompt("Enter Issue:");
+
+            const payload = {
+                conversation_id: convId,
+                name: name,
+                serial: serial,
+                issue: issue
+            };
+
+            try {
+                const res = await fetch('/api/repair-requests', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    showNotif("Repair entry captured!", true);
+                    fetchData();
+                }
+            } catch (e) { showNotif("Failed to create entry", false); }
+        }
+
+        async function deleteRepair(reqId) {
+            if (!confirm("Are you sure you want to delete this repair entry?")) return;
+            try {
+                const res = await fetch(`/api/repair-requests/${reqId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    showNotif("Repair entry deleted", true);
+                    document.getElementById(`req-card-${reqId}`).remove();
+                }
+            } catch (e) { showNotif("Error deleting", false); }
+        }
+
+        async function deleteConv(convId) {
+            if (!confirm("Are you sure you want to delete this entire conversation and all associated data?")) return;
+            try {
+                const res = await fetch(`/api/conversations/${convId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    showNotif("Conversation deleted", true);
+                    document.getElementById(`conv-card-${convId}`).remove();
+                }
+            } catch (e) { showNotif("Error deleting", false); }
+        }
+
+        async function viewConversation(convId) {
+            const modalBody = document.getElementById('modal-content');
+            modalBody.innerHTML = '<div class="loading">Loading transcript...</div>';
+            document.getElementById('overlay').style.display = 'flex';
+
+            try {
+                const res = await fetch(`/conversations/${convId}`);
+                const data = await res.json();
+                modalBody.innerHTML = data.messages.map(m => `
+                    <div class="msg-bubble ${m.role === 'user' ? 'msg-user' : 'msg-ai'}">
+                        <span class="msg-role">${m.role === 'user' ? 'Customer' : 'AI'}</span>
+                        <textarea class="msg-content" oninput="autoExpand(this)" id="msg-${m.id}">${m.content}</textarea>
+                        <button class="msg-save-btn" onclick="saveMessage(${m.id})">Save Text</button>
+                    </div>
+                `).join('');
+                document.querySelectorAll('.msg-content').forEach(autoExpand);
+            } catch (e) {
+                modalBody.innerHTML = '<div class="error">Failed to load conversation.</div>';
+            }
+        }
+
+        async function saveMessage(id) {
+            const content = document.getElementById(`msg-${id}`).value;
+            try {
+                const res = await fetch(`/api/messages/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                if (res.ok) showNotif("Message corrected!", true);
+            } catch (e) { showNotif("Error saving message", false); }
+        }
+
+        function closeModal() {
+            document.getElementById('overlay').style.display = 'none';
+        }
+
+        function showNotif(msg, success) {
+            const n = document.getElementById('notification');
+            n.textContent = msg;
+            n.className = success ? 'success' : 'error';
+            n.style.display = 'block';
+            setTimeout(() => n.style.display = 'none', 3000);
+        }
+
+        function autoExpand(el) {
+            el.style.height = 'inherit';
+            el.style.height = (el.scrollHeight) + 'px';
+        }
+
+        // Init
+        fetchData();
+    </script>
+</body>
+
+</html>

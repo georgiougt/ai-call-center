@@ -22,6 +22,21 @@ class RepairRequestCreate(BaseModel):
     issue: Optional[str] = None
 
 
+class RepairRequestUpdate(BaseModel):
+    name: str
+    serial: str
+    issue: Optional[str] = None
+
+
+class MessageUpdate(BaseModel):
+    content: str
+
+
+class ManualConversation(BaseModel):
+    messages: List[MessageCreate]
+    department: Optional[str] = None
+
+
 # --- Response Models ---
 
 class MessageResponse(BaseModel):
