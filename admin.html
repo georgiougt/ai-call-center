@@ -401,7 +401,7 @@
                         </div>
                         <div class="btn-row">
                             <button class="btn-save" onclick="saveRequest(${req.id})">Save Changes</button>
-                            <button class="btn-view" onclick="viewConversation(${req.conversation_id})">View Chat</button>
+                            ${req.conversation_id ? `<button class="btn-view" onclick="viewConversation(${req.conversation_id})">View Chat</button>` : '<button class="btn-view" disabled style="opacity: 0.5; cursor: not-allowed;">No Chat</button>'}
                             <button class="btn-delete" onclick="deleteRepair(${req.id})">🗑️</button>
                         </div>
                     </div>
@@ -506,6 +506,10 @@
         }
 
         async function viewConversation(convId) {
+            if (!convId || convId === 'null') {
+                showNotif("No transcript available for this record", false);
+                return;
+            }
             const modalBody = document.getElementById('modal-content');
             modalBody.innerHTML = '<div class="loading">Loading transcript...</div>';
             document.getElementById('overlay').style.display = 'flex';
