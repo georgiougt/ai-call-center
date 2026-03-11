@@ -12,6 +12,12 @@ import asyncio
 import queue
 import threading
 from dotenv import load_dotenv
+import logging
+
+# Set up logging for Render debugging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("server")
+logger.info("Initializing server...")
 
 from google.cloud import speech
 from google.oauth2 import service_account
@@ -21,6 +27,8 @@ from models import (
     MessageCreate, ChatRequest, ManualConversation, 
     RepairRequestCreate, RepairRequestUpdate, MessageUpdate
 )
+
+logger.info("Environment and models loaded.")
 
 load_dotenv()
 
@@ -58,8 +66,15 @@ except Exception as e:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize database on startup, close pool on shutdown."""
-    await db.init_db()
+    logger.info("Lifespan starting: Initializing DB...")
+    try:
+        await asyncio.wait_for(db.init_db(), timeout=20.0) # 20s timeout
+        logger.info("Lifespan: DB initialized.")
+    except Exception as e:
+        logger.error(f"Lifespan: DB initialization FAILED: {e}")
+        # We don't raise here so the server can at least start and serve a 500 error later
     yield
+    logger.info("Lifespan: Closing DB pool...")
     await db.close_pool()
 
 app = FastAPI(lifespan=lifespan)
@@ -71,6 +86,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "timestamp": str(asyncio.get_event_loop().time())}
 
 @app.get("/config")
 async def get_config():
