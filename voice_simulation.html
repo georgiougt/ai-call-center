@@ -272,6 +272,7 @@
         let audioSocket;
         let synthesis = window.speechSynthesis;
         let history = [];
+        let sessionId = null;
         let isProcessing = false;
         let voices = [];
         let elevenLabsApiKey = ""; // Fetched dynamically
@@ -759,6 +760,7 @@
             conversationDiv.innerHTML = '';
 
             history = [];
+            sessionId = null;
 
             const greetings = [
                 "Καλησπέρα σας, καλέσατε την Γιαννάκης Σκεμπετζής και Υἱοί. Πώς μπορώ να σας εξυπηρετήσω;",
@@ -1009,7 +1011,8 @@
                         },
                         body: JSON.stringify({
                             history: history,
-                            message: userText
+                            message: userText,
+                            session_id: sessionId
                         })
                     });
 
@@ -1043,6 +1046,9 @@
 
                                 try {
                                     const dataPayload = JSON.parse(dataStr);
+                                    if (dataPayload.session_id) {
+                                        sessionId = dataPayload.session_id;
+                                    }
                                     if (dataPayload.chunk) {
                                         response += dataPayload.chunk;
                                         // Update the UI dynamically
