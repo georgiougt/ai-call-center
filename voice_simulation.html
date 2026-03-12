@@ -237,8 +237,8 @@
 
             <div id="elevenLabsSettings" style="display:none; margin-top: 15px; flex-direction: column; gap: 10px;">
                 <input type="password" id="xiApiKey" placeholder="ElevenLabs API Key">
-                <input type="text" id="xiVoiceId" placeholder="Voice ID (default: 21m00Tcm4TlvDq8ikWAM)"
-                    value="21m00Tcm4TlvDq8ikWAM">
+                <input type="text" id="xiVoiceId" placeholder="Voice ID (default: JrrE7QTGDmQKQuUnqk7H)"
+                    value="JrrE7QTGDmQKQuUnqk7H">
                 <small style="color: #888;">Get a key from <a href="https://elevenlabs.io" target="_blank"
                         style="color: #bf953f; text-decoration: none;">elevenlabs.io</a></small>
             </div>
@@ -492,7 +492,7 @@
 
             if (mode === 'elevenlabs') {
                 const apiKey = document.getElementById('xiApiKey').value || elevenLabsApiKey;
-                const voiceId = document.getElementById('xiVoiceId').value || "21m00Tcm4TlvDq8ikWAM"; // Default Rachel
+                const voiceId = document.getElementById('xiVoiceId').value || "JrrE7QTGDmQKQuUnqk7H"; // Default voice
 
                 if (!apiKey) {
                     alert("Please enter an ElevenLabs API Key.");
