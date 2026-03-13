@@ -12,6 +12,7 @@ import asyncio
 import queue
 import threading
 from dotenv import load_dotenv
+from datetime import datetime
 import logging
 
 # Set up logging for Render debugging
@@ -165,6 +166,80 @@ def parse_response(response_text: str):
 
 # --- Chat Endpoint (Streaming JS-compatible SSE) ---
 
+async def get_gemini_response(message: str, history: List[MessageCreate], session_id: str):
+    """Core logic to get a response from Gemini and log/parse it."""
+    # Get or create conversation in DB
+    conversation_id = await db.get_or_create_conversation(session_id)
+
+    # Log the user message
+    await db.add_message(conversation_id, "user", message)
+
+    if not model:
+        response_text = mock_llm_logic(message, history)
+        await db.add_message(conversation_id, "model", response_text)
+        return response_text, None, None
+
+    # Safety Settings
+    safety_settings = {
+        "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
+        "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
+        "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
+        "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
+    }
+
+    # Keep LLM context short to optimize latency (keep last 4 turns)
+    chat_history = []
+    recent_history = history[-4:] if len(history) > 4 else history
+    for msg in recent_history:
+        role = "user" if msg.role == "user" else "model"
+        chat_history.append({"role": role, "parts": [msg.content]})
+
+    sys_instr = get_system_instructions()
+    full_prompt = sys_instr + "\n\nConversation History:\n"
+    for msg in chat_history:
+        full_prompt += f"{msg['role'].upper()}: {msg['parts'][0]}\n"
+
+    full_prompt += f"USER: {message}\nAI:"
+
+    full_response_text = ""
+    try:
+        # Call Gemini (non-streaming for this utility, or we can use the stream logic if needed)
+        # For simplicity in Vapi/Backend reuse, we'll provide a way to get the full text
+        response = await model.generate_content_async(
+            full_prompt, 
+            safety_settings=safety_settings
+        )
+        full_response_text = response.text if response.text else "Σφάλμα. Δεν μπορώ να απαντήσω."
+    except Exception as e:
+        logger.error(f"Gemini API Error: {e}")
+        full_response_text = f"System Error: {str(e)}"
+
+    # AFTER GENERATION: Log to Database and Parse Routing
+    try:
+        # 1. Log AI Response
+        await db.add_message(conversation_id, "model", full_response_text.strip())
+
+        # 2. Parse Routing & Repair Data
+        department, repair_data = parse_response(full_response_text)
+
+        if department:
+            await db.update_conversation_routing(conversation_id, department)
+
+        if repair_data:
+            await db.save_repair_request(
+                name=repair_data.get("name", ""),
+                serial=repair_data.get("serial", ""),
+                issue=repair_data.get("issue"),
+                conversation_id=conversation_id
+            )
+            print(f"[OK] Saved Repair Request to DB: {repair_data}")
+
+        return full_response_text, department, repair_data
+
+    except Exception as db_err:
+        print(f"[WARN] Failed post-processing routing/DB save: {db_err}")
+        return full_response_text, None, None
+
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     # Generate or use provided session ID
@@ -269,6 +344,95 @@ async def chat_endpoint(request: ChatRequest):
             print(f"[WARN] Failed post-processing routing/DB save: {db_err}")
 
     return StreamingResponse(generate_and_log(), media_type="text/event-stream")
+
+
+# --- Vapi / OpenAI-Compatible Endpoints ---
+
+@app.post("/v1/chat/completions")
+async def chat_completions(request: Request):
+    """OpenAI-compatible endpoint for Vapi's Custom LLM provider."""
+    data = await request.json()
+    messages = data.get("messages", [])
+    
+    # Extract the last message and history
+    if not messages:
+        return {"choices": [{"message": {"role": "assistant", "content": "No message provided."}}]}
+    
+    user_message = messages[-1].get("content", "")
+    history = [MessageCreate(role=m.get("role"), content=m.get("content")) for m in messages[:-1]]
+    
+    # Use our unified Gemini logic
+    # We'll use a dummy/temporary session ID for Vapi calls for now, 
+    # or Vapi can provide one in the request.
+    vapi_session_id = data.get("user", f"vapi-{uuid.uuid4()}")
+    
+    response_text, department, repair_data = await get_gemini_response(user_message, history, vapi_session_id)
+    
+    # Log Routing if detected (Vapi doesn't natively parse 'TRANSFER:' unless instructed)
+    # But our get_gemini_response already did the DB logging and parsing!
+    
+    return {
+        "id": f"chatcmpl-{uuid.uuid4()}",
+        "object": "chat.completion",
+        "created": int(datetime.now().timestamp()),
+        "model": "gemini-flash-latest",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": response_text
+                },
+                "finish_reason": "stop"
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0
+        }
+    }
+
+@app.post("/vapi")
+async def vapi_webhook(request: Request):
+    """
+    Unified webhook for Vapi.ai.
+    Handles 'assistant-request' to configure the agent.
+    """
+    data = await request.json()
+    message = data.get("message", {})
+    msg_type = message.get("type")
+    
+    logger.info(f"Vapi Webhook received: {msg_type}")
+
+    if msg_type == "assistant-request":
+        # When Vapi requires the assistant configuration
+        base_url = str(request.base_url).rstrip("/")
+        return {
+            "assistant": {
+                "name": "Giannakis Call Center AI",
+                "firstMessage": "Καλησπέρα σας, καλέσατε την Γιαννάκης Σκεμπετζής και Υιοί. Πώς μπορώ να σας εξυπηρετήσω;",
+                "model": {
+                    "provider": "custom-llm",
+                    "url": f"{base_url}/v1", 
+                    "model": "gemini-flash-latest",
+                },
+                "voice": {
+                    "provider": "elevenlabs",
+                    "voiceId": os.getenv("ELEVENLABS_VOICE_ID", "JrrE7QTGDmQKQuUnqk7H")
+                },
+                "transcriber": {
+                    "provider": "deepgram",
+                    "model": "nova-2",
+                    "language": "el"
+                }
+            }
+        }
+    
+    return {"status": "ok"}
+
+
+
 
 
 # --- Google Cloud Speech-to-Text Streaming ---
