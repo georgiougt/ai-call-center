@@ -780,7 +780,7 @@
             let transferLabel = "";
 
             // SPARE PARTS
-            if (["part", "filter", "motor", "replacement", "belt", "oil", "brakes", "ανταλλακτικ", "φιλτρ", "λαδι", "φρενα", "εξαρτημ", "μοτερ"].some(k => normalizedText.includes(k))) {
+            if (["part", "filter", "motor", "replacement", "belt", "brakes", "ανταλλακτικ", "φιλτρ", "φρενα", "εξαρτημ", "μοτερ"].some(k => normalizedText.includes(k))) {
                 response = isEnglish ? "I will transfer you to the Spare Parts department. Please hold." : "Μάλιστα, θα σας συνδέσω με το τμήμα ανταλλακτικών. Παρακαλώ περιμένετε.";
                 transferLabel = "SPARE_PARTS";
             }
