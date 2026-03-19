@@ -436,39 +436,52 @@ async def chat_completions(request: Request):
 async def vapi_webhook(request: Request):
     """
     Unified webhook for Vapi.ai.
-    Handles 'assistant-request' to configure the agent.
+    Handles 'assistant-request' to configure the agent and other hooks.
     """
-    data = await request.json()
-    message = data.get("message", {})
-    msg_type = message.get("type")
-    
-    logger.info(f"Vapi Webhook received: {msg_type}")
+    try:
+        data = await request.json()
+        message = data.get("message", {})
+        msg_type = message.get("type")
+        
+        logger.info(f"Vapi Webhook: Received {msg_type}")
 
-    if msg_type == "assistant-request":
-        # When Vapi requires the assistant configuration
-        base_url = str(request.base_url).rstrip("/")
-        return {
-            "assistant": {
-                "name": "Giannakis Call Center AI",
-                "firstMessage": "Καλησπέρα σας, καλέσατε την Γιαννάκης Σκεμπετζής και Υιοί. Πώς μπορώ να σας εξυπηρετήσω;",
-                "model": {
-                    "provider": "custom-llm",
-                    "url": f"{base_url}/v1", 
-                    "model": "gemini-flash-latest",
-                },
-                "voice": {
-                    "provider": "elevenlabs",
-                    "voiceId": os.getenv("ELEVENLABS_VOICE_ID", "JrrE7QTGDmQKQuUnqk7H")
-                },
-                "transcriber": {
-                    "provider": "deepgram",
-                    "model": "nova-2",
-                    "language": "el"
+        if msg_type == "assistant-request":
+            # When Vapi requires the assistant configuration
+            client_base_url = str(request.base_url).rstrip("/")
+            # Use Render URL if available, otherwise fallback to request base_url
+            host = request.headers.get("host", client_base_url)
+            proto = request.headers.get("x-forwarded-proto", "https")
+            base_url = f"{proto}://{host}"
+            
+            logger.info(f"Vapi Webhook: Providing configuration with base_url: {base_url}")
+            
+            return {
+                "assistant": {
+                    "name": "Giannakis Call Center AI",
+                    "firstMessage": "Καλησπέρα σας, καλέσατε την Γιαννάκης Σκεμπετζής και Υιοί. Πώς μπορώ να σας εξυπηρετήσω;",
+                    "model": {
+                        "provider": "custom-llm",
+                        "url": f"{base_url}/v1", 
+                        "model": "gemini-flash-latest",
+                    },
+                    "voice": {
+                        "provider": "elevenlabs",
+                        "voiceId": os.getenv("ELEVENLABS_VOICE_ID", "JrrE7QTGDmQKQuUnqk7H")
+                    },
+                    "transcriber": {
+                        "provider": "deepgram",
+                        "model": "nova-2",
+                        "language": "el"
+                    }
                 }
             }
-        }
-    
-    return {"status": "ok"}
+        
+        # Handle other Vapi messages (end-of-call-report, tool-calls, etc.)
+        return {"status": "ok", "received": msg_type}
+        
+    except Exception as e:
+        logger.error(f"Vapi Webhook Error: {e}")
+        return {"error": str(e)}, 500
 
 
 
