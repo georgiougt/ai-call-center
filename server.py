@@ -350,48 +350,87 @@ async def chat_endpoint(request: ChatRequest):
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
-    """OpenAI-compatible endpoint for Vapi's Custom LLM provider."""
+    """OpenAI-compatible endpoint for Vapi's Custom LLM provider. Supports Streaming."""
     data = await request.json()
     messages = data.get("messages", [])
+    stream_requested = data.get("stream", False)
     
-    # Extract the last message and history
     if not messages:
         return {"choices": [{"message": {"role": "assistant", "content": "No message provided."}}]}
     
     user_message = messages[-1].get("content", "")
-    history = [MessageCreate(role=m.get("role"), content=m.get("content")) for m in messages[:-1]]
+    # Note: Vapi sends full history. We map roles to Gemini equivalents.
+    history = []
+    for m in messages[:-1]:
+        role = "user" if m.get("role") == "user" else "model"
+        history.append(MessageCreate(role=role, content=m.get("content", "")))
     
-    # Use our unified Gemini logic
-    # We'll use a dummy/temporary session ID for Vapi calls for now, 
-    # or Vapi can provide one in the request.
     vapi_session_id = data.get("user", f"vapi-{uuid.uuid4()}")
     
-    response_text, department, repair_data = await get_gemini_response(user_message, history, vapi_session_id)
-    
-    # Log Routing if detected (Vapi doesn't natively parse 'TRANSFER:' unless instructed)
-    # But our get_gemini_response already did the DB logging and parsing!
-    
-    return {
-        "id": f"chatcmpl-{uuid.uuid4()}",
-        "object": "chat.completion",
-        "created": int(datetime.now().timestamp()),
-        "model": "gemini-flash-latest",
-        "choices": [
-            {
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": response_text
-                },
-                "finish_reason": "stop"
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0
+    if not stream_requested:
+        # Non-streaming implementation
+        response_text, department, repair_data = await get_gemini_response(user_message, history, vapi_session_id)
+        return {
+            "id": f"chatcmpl-{uuid.uuid4()}",
+            "object": "chat.completion",
+            "created": int(datetime.now().timestamp()),
+            "model": "gemini-flash-latest",
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": response_text}, "finish_reason": "stop"}]
         }
-    }
+
+    # Streaming implementation for Vapi/OpenAI
+    async def openai_stream_generator():
+        # Get or create conversation in DB for tracking
+        conversation_id = await db.get_or_create_conversation(vapi_session_id)
+        await db.add_message(conversation_id, "user", user_message)
+
+        full_response_text = ""
+        cmpl_id = f"chatcmpl-{uuid.uuid4()}"
+        created_time = int(datetime.now().timestamp())
+
+        # Construct Gemini Prompt (Short context)
+        sys_instr = get_system_instructions()
+        full_prompt = sys_instr + "\n\nConversation History:\n"
+        for msg in history[-4:]:
+            full_prompt += f"{msg.role.upper()}: {msg.content}\n"
+        full_prompt += f"USER: {user_message}\nAI:"
+
+        try:
+            response_stream = await model.generate_content_async(full_prompt, stream=True)
+            async for chunk in response_stream:
+                if chunk.text:
+                    full_response_text += chunk.text
+                    chunk_payload = {
+                        "id": cmpl_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_time,
+                        "model": "gemini-flash-latest",
+                        "choices": [{"index": 0, "delta": {"content": chunk.text}, "finish_reason": None}]
+                    }
+                    yield f"data: {json.dumps(chunk_payload)}\n\n"
+            
+            # Final chunk
+            yield f"data: {json.dumps({'id': cmpl_id, 'object': 'chat.completion.chunk', 'created': created_time, 'model': 'gemini-flash-latest', 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]})}\n\n"
+            yield "data: [DONE]\n\n"
+
+            # Post-processing (Logging & Routing)
+            await db.add_message(conversation_id, "model", full_response_text.strip())
+            department, repair_data = parse_response(full_response_text)
+            if department: await db.update_conversation_routing(conversation_id, department)
+            if repair_data:
+                await db.save_repair_request(
+                    name=repair_data.get("name", ""),
+                    serial=repair_data.get("serial", ""),
+                    issue=repair_data.get("issue"),
+                    conversation_id=conversation_id
+                )
+
+        except Exception as e:
+            logger.error(f"Vapi Stream Error: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(openai_stream_generator(), media_type="text/event-stream")
 
 @app.post("/vapi")
 async def vapi_webhook(request: Request):
