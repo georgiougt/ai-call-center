@@ -324,6 +324,11 @@
         <header>
             <h1>🛠️ Database Correction Portal</h1>
             <p class="subtitle">Review and fix repair requests or conversation transcripts.</p>
+            <div style="margin-top: 20px;">
+                <button class="btn-save" style="width: auto; padding: 12px 30px; border: 1px solid var(--primary-light); box-shadow: 0 0 15px rgba(191,149,63,0.3);" onclick="exportTrainingData()">
+                    📥 Export for Gemini Training (.jsonl)
+                </button>
+            </div>
         </header>
 
         <div class="tabs">
@@ -557,6 +562,15 @@
         function autoExpand(el) {
             el.style.height = 'inherit';
             el.style.height = (el.scrollHeight) + 'px';
+        }
+
+        async function exportTrainingData() {
+            try {
+                showNotif("Preparing export...", true);
+                window.location.href = '/api/export-training-data';
+            } catch (e) {
+                showNotif("Export failed", false);
+            }
         }
 
         // Init

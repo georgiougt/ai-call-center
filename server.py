@@ -668,6 +668,41 @@ async def update_repair_request_endpoint(request_id: int, data: RepairRequestUpd
     await db.update_repair_request(request_id, data.name, data.serial, data.issue)
     return {"status": "success"}
 
+@app.get("/api/export-training-data")
+async def export_training_data():
+    """Export all conversations in Gemini's JSONL fine-tuning format."""
+    conversations = await db.get_complete_conversations(min_turns=2)
+    
+    export_lines = []
+    for conv in conversations:
+        # Format for Gemini 1.5 Fine-tuning
+        # {"contents": [{"role": "user", "parts": [{"text": "..."}]}, ...]}
+        contents = []
+        for msg in conv.get("messages", []):
+            role_map = {"user": "user", "model": "model"}
+            contents.append({
+                "role": role_map.get(msg["role"], "user"),
+                "parts": [{"text": msg["content"]}]
+            })
+        
+        if contents:
+            export_lines.append(json.dumps({"contents": contents}, ensure_ascii=False))
+            
+    content = "\n".join(export_lines)
+    
+    # Return as a downloadable file
+    filename = f"training_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl"
+    temp_path = os.path.join(os.path.dirname(__file__), filename)
+    with open(temp_path, "w", encoding="utf-8") as f:
+        f.write(content)
+        
+    return FileResponse(
+        temp_path, 
+        media_type="application/x-jsonlines", 
+        filename=filename,
+        background=asyncio.create_task(asyncio.sleep(10)).add_done_callback(lambda _: os.remove(temp_path) if os.path.exists(temp_path) else None)
+    )
+
 @app.patch("/api/messages/{message_id}")
 async def update_message_endpoint(message_id: int, data: MessageUpdate):
     """Update a message transcript."""
