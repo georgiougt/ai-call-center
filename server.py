@@ -463,6 +463,7 @@ async def vapi_webhook(request: Request):
                         "provider": "custom-llm",
                         "url": f"{base_url}/v1", 
                         "model": "gemini-flash-latest",
+                        "systemPrompt": get_system_instructions()
                     },
                     "voice": {
                         "provider": "elevenlabs",
