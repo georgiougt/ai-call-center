@@ -482,7 +482,26 @@ async def vapi_webhook(request: Request):
                 }
             }
         
-        # Handle other Vapi messages (end-of-call-report, tool-calls, etc.)
+        if msg_type == "end-of-call-report":
+            # Save the full transcript and metadata to the DB
+            call_data = message.get("call", {})
+            vapi_id = call_data.get("id", "unknown")
+            transcript = call_data.get("transcript", "")
+            summary = call_data.get("summary", "")
+            
+            logger.info(f"Vapi Webhook: Processing end-of-call for {vapi_id}")
+            
+            if transcript:
+                # Create a conversation entry for this Vapi call if it doesn't exist
+                conversation_id = await db.get_or_create_conversation(f"vapi-call-{vapi_id}", language="el-VAPI")
+                
+                # If the DB doesn't have messages yet (e.g. if /v1 wasn't used), save it as one bulk message or parse it
+                # For simplicity and robustness, we'll save the summary and a marker
+                await db.add_message(conversation_id, "model", f"VOICE CALL SUMMARY: {summary}\n\nFULL TRANSCRIPT:\n{transcript}")
+            
+            return {"status": "ok", "processed": "end-of-call"}
+
+        # Handle other Vapi messages (assistant.started, status-update, etc.)
         return {"status": "ok", "received": msg_type}
         
     except Exception as e:
