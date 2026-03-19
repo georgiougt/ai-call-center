@@ -463,16 +463,21 @@ async def vapi_webhook(request: Request):
                         "provider": "custom-llm",
                         "url": f"{base_url}/v1", 
                         "model": "gemini-flash-latest",
-                        "systemPrompt": get_system_instructions()
+                        "systemPrompt": get_system_instructions(),
+                        "temperature": 0.7
                     },
                     "voice": {
                         "provider": "elevenlabs",
-                        "voiceId": os.getenv("ELEVENLABS_VOICE_ID", "JrrE7QTGDmQKQuUnqk7H")
+                        "voiceId": os.getenv("ELEVENLABS_VOICE_ID", "JrrE7QTGDmQKQuUnqk7H"),
+                        "model": "eleven_multilingual_v2",
+                        "stability": 0.5,
+                        "similarityBoost": 0.75
                     },
                     "transcriber": {
                         "provider": "deepgram",
                         "model": "nova-2",
-                        "language": "el"
+                        "language": "el",
+                        "smartFormat": True
                     }
                 }
             }
