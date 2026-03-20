@@ -515,8 +515,6 @@ async def vapi_webhook(request: Request):
                     logger.warning(f"Vapi Webhook: Received report for {vapi_id} but transcript was empty in all known fields.")
             except Exception as db_err:
                 logger.error(f"Vapi Webhook: DATABASE/PROCESS ERROR during logging: {db_err}")
-            else:
-                logger.warning(f"Vapi Webhook: Received report for {vapi_id} but transcript was empty.")
             
             return {"status": "ok", "processed": "end-of-call"}
 
