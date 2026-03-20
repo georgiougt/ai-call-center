@@ -24,8 +24,16 @@ async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
         if not DATABASE_URL:
-            raise RuntimeError("DATABASE_URL not set in .env file. Get it from Supabase → Settings → Database → Connection string.")
-        _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5)
+            raise RuntimeError("DATABASE_URL not set in .env file.")
+        
+        # Add SSL=require for Supabase if not in the URL
+        # Increase max size for higher concurrency
+        _pool = await asyncpg.create_pool(
+            DATABASE_URL, 
+            min_size=1, 
+            max_size=10,
+            command_timeout=60
+        )
     return _pool
 
 

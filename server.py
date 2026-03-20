@@ -491,19 +491,21 @@ async def vapi_webhook(request: Request):
             transcript = call_data.get("transcript", "")
             summary = call_data.get("summary", "")
             
-            logger.info(f"Vapi Webhook: Processing end-of-call for {vapi_id}")
+            logger.info(f"Vapi Webhook: START processing end-of-call for {vapi_id}")
             
             if transcript:
-                # Create a conversation entry for this Vapi call if it doesn't exist
-                session_id = f"vapi-call-{vapi_id}"
-                conversation_id = await db.get_or_create_conversation(session_id, language="el-VAPI")
-                logger.info(f"Vapi Webhook: Logging to Conversation ID {conversation_id}")
-                
-                # If the DB doesn't have messages yet (e.g. if /v1 wasn't used), save it as one bulk message or parse it
-                # For simplicity and robustness, we'll save the summary and a marker
-                msg_content = f"VOICE CALL SUMMARY: {summary}\n\nFULL TRANSCRIPT:\n{transcript}"
-                await db.add_message(conversation_id, "model", msg_content)
-                logger.info(f"Vapi Webhook: Successfully saved transcript for {vapi_id}")
+                try:
+                    session_id = f"vapi-call-{vapi_id}"
+                    logger.info(f"Vapi Webhook: Attempting to get/create conversation {session_id}")
+                    conversation_id = await db.get_or_create_conversation(session_id, language="el-VAPI")
+                    logger.info(f"Vapi Webhook: TARGET Conversation ID is {conversation_id}")
+                    
+                    msg_content = f"VOICE CALL SUMMARY: {summary}\n\nFULL TRANSCRIPT:\n{transcript}"
+                    logger.info("Vapi Webhook: Attempting to add_message to DB...")
+                    await db.add_message(conversation_id, "model", msg_content)
+                    logger.info(f"Vapi Webhook: SUCCESS - Transcript saved for {vapi_id}")
+                except Exception as db_err:
+                    logger.error(f"Vapi Webhook: DATABASE ERROR during logging: {db_err}")
             else:
                 logger.warning(f"Vapi Webhook: Received report for {vapi_id} but transcript was empty.")
             
