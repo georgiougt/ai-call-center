@@ -522,13 +522,18 @@
             try {
                 const res = await fetch(`/conversations/${convId}`);
                 const data = await res.json();
-                modalBody.innerHTML = data.messages.map(m => `
-                    <div class="msg-bubble ${m.role === 'user' ? 'msg-user' : 'msg-ai'}">
-                        <span class="msg-role">${m.role === 'user' ? 'Customer' : 'AI'}</span>
-                        <textarea class="msg-content" oninput="autoExpand(this)" id="msg-${m.id}">${m.content}</textarea>
-                        <button class="msg-save-btn" onclick="saveMessage(${m.id})">Save Text</button>
-                    </div>
-                `).join('');
+                modalBody.innerHTML = data.messages.map(m => {
+                    const isUser = m.role === 'user';
+                    const label = isUser ? 'Customer' : 'AI';
+                    const bubbleClass = isUser ? 'msg-user' : 'msg-ai';
+                    return `
+                        <div class="msg-bubble ${bubbleClass}">
+                            <span class="msg-role">${label}</span>
+                            <textarea class="msg-content" oninput="autoExpand(this)" id="msg-${m.id}">${m.content}</textarea>
+                            <button class="msg-save-btn" onclick="saveMessage(${m.id})">Save Text</button>
+                        </div>
+                    `;
+                }).join('');
                 document.querySelectorAll('.msg-content').forEach(autoExpand);
             } catch (e) {
                 modalBody.innerHTML = '<div class="error">Failed to load conversation.</div>';
