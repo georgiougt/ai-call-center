@@ -352,6 +352,8 @@ async def chat_endpoint(request: ChatRequest):
 async def chat_completions(request: Request):
     """OpenAI-compatible endpoint for Vapi's Custom LLM provider. Supports Streaming."""
     data = await request.json()
+    logger.info(f"Vapi LLM Request: {json.dumps(data)[:200]}...") # Log first 200 chars
+    
     messages = data.get("messages", [])
     stream_requested = data.get("stream", False)
     
@@ -493,11 +495,17 @@ async def vapi_webhook(request: Request):
             
             if transcript:
                 # Create a conversation entry for this Vapi call if it doesn't exist
-                conversation_id = await db.get_or_create_conversation(f"vapi-call-{vapi_id}", language="el-VAPI")
+                session_id = f"vapi-call-{vapi_id}"
+                conversation_id = await db.get_or_create_conversation(session_id, language="el-VAPI")
+                logger.info(f"Vapi Webhook: Logging to Conversation ID {conversation_id}")
                 
                 # If the DB doesn't have messages yet (e.g. if /v1 wasn't used), save it as one bulk message or parse it
                 # For simplicity and robustness, we'll save the summary and a marker
-                await db.add_message(conversation_id, "model", f"VOICE CALL SUMMARY: {summary}\n\nFULL TRANSCRIPT:\n{transcript}")
+                msg_content = f"VOICE CALL SUMMARY: {summary}\n\nFULL TRANSCRIPT:\n{transcript}"
+                await db.add_message(conversation_id, "model", msg_content)
+                logger.info(f"Vapi Webhook: Successfully saved transcript for {vapi_id}")
+            else:
+                logger.warning(f"Vapi Webhook: Received report for {vapi_id} but transcript was empty.")
             
             return {"status": "ok", "processed": "end-of-call"}
 
