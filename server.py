@@ -479,7 +479,12 @@ async def vapi_webhook(request: Request):
                         "provider": "deepgram",
                         "model": "nova-2",
                         "language": "el",
-                        "smartFormat": True
+                        "smartFormat": True,
+                        "keywords": ["Γιαννάκης:10", "Σκεμπετζής:10", "Μπεζής:10", "ανταλλακτικά:5", "σέρβις:5"]
+                    },
+                    "vapi": {
+                        "vadSensitivity": 0.3,
+                        "endOfUtteranceDelay": 800
                     }
                 }
             }
