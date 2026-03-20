@@ -501,7 +501,11 @@ async def vapi_webhook(request: Request):
                 if vapi_messages and isinstance(vapi_messages, list):
                     logger.info(f"Vapi Webhook: Found {len(vapi_messages)} granular messages.")
                     for m in vapi_messages:
-                        role = "model" if m.get("role") == "assistant" else "user"
+                        v_role = m.get("role")
+                        if v_role == "system":
+                            continue # Skip the system prompt in the chat history
+                            
+                        role = "model" if v_role in ["assistant", "bot", "ai"] else "user"
                         content = m.get("message") or m.get("content")
                         if content:
                             await db.add_message(conversation_id, role, content)
