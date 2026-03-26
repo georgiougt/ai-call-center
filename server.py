@@ -204,7 +204,7 @@ async def get_gemini_response(message: str, history: List[MessageCreate], sessio
         chat_history.append({"role": role, "parts": [msg.content]})
 
     sys_instr = get_system_instructions()
-    model_with_sys = genai.GenerativeModel('gemini-1.5-flash', system_instruction=sys_instr)
+    model_with_sys = genai.GenerativeModel('gemini-flash-latest', system_instruction=sys_instr)
     
     # Append current user message
     chat_history.append({"role": "user", "parts": [message]})
@@ -292,7 +292,7 @@ async def chat_endpoint(request: ChatRequest):
         chat_history.append({"role": role, "parts": [msg.content]})
 
     sys_instr = get_system_instructions()
-    model_with_sys = genai.GenerativeModel('gemini-1.5-flash', system_instruction=sys_instr)
+    model_with_sys = genai.GenerativeModel('gemini-flash-latest', system_instruction=sys_instr)
     
     # Append current user message
     chat_history.append({"role": "user", "parts": [request.message]})
@@ -415,7 +415,7 @@ async def chat_completions(request: Request):
 
         # Construct Gemini prompt with full conversational history
         sys_instr = get_system_instructions()
-        model_with_sys = genai.GenerativeModel('gemini-1.5-flash', system_instruction=sys_instr)
+        model_with_sys = genai.GenerativeModel('gemini-flash-latest', system_instruction=sys_instr)
 
         chat_history = []
         for msg in history:
