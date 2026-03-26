@@ -20,8 +20,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger("server")
 logger.info("Initializing server...")
 
-from google.cloud import speech
-from google.oauth2 import service_account
+from deepgram import (
+    DeepgramClient,
+    LiveTranscriptionEvents,
+    LiveOptions,
+)
 
 import database as db
 from models import (
@@ -44,22 +47,18 @@ else:
     print("WARNING: GEMINI_API_KEY not found in .env. Using mock fallback.")
     model = None
 
-# Configure Google Speech-to-Text
+# Configure Deepgram
 try:
-    credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
-    if credentials_json:
-        # Load credentials from JSON string (Ideal for Render/Cloud)
-        creds_info = json.loads(credentials_json)
-        credentials = service_account.Credentials.from_service_account_info(creds_info)
-        speech_client = speech.SpeechClient(credentials=credentials)
-        print("[OK] Google Speech-to-Text initialized via Environment Variable.")
+    DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
+    if DEEPGRAM_API_KEY:
+        deepgram_client = DeepgramClient(DEEPGRAM_API_KEY)
+        print("[OK] Deepgram initialized.")
     else:
-        # Fallback to local file path
-        speech_client = speech.SpeechClient()
-        print("[OK] Google Speech-to-Text initialized via default credentials (file).")
+        deepgram_client = None
+        print("WARNING: DEEPGRAM_API_KEY not found in .env.")
 except Exception as e:
-    print(f"WARNING: Google Speech-to-Text client failed to initialize: {e}")
-    speech_client = None
+    print(f"WARNING: Deepgram client failed to initialize: {e}")
+    deepgram_client = None
 
 
 # --- App Lifecycle ---
@@ -197,26 +196,23 @@ async def get_gemini_response(message: str, history: List[MessageCreate], sessio
         "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
     }
 
-    # Keep LLM context short to optimize latency (keep last 4 turns)
+    # Ensure strict conversational history for complete context
     chat_history = []
-    recent_history = history[-4:] if len(history) > 4 else history
-    for msg in recent_history:
+    for msg in history:
         role = "user" if msg.role == "user" else "model"
         chat_history.append({"role": role, "parts": [msg.content]})
 
     sys_instr = get_system_instructions()
-    full_prompt = sys_instr + "\n\nConversation History:\n"
-    for msg in chat_history:
-        full_prompt += f"{msg['role'].upper()}: {msg['parts'][0]}\n"
-
-    full_prompt += f"USER: {message}\nAI:"
+    model_with_sys = genai.GenerativeModel('gemini-1.5-flash', system_instruction=sys_instr)
+    
+    # Append current user message
+    chat_history.append({"role": "user", "parts": [message]})
 
     full_response_text = ""
     try:
-        # Call Gemini (non-streaming for this utility, or we can use the stream logic if needed)
-        # For simplicity in Vapi/Backend reuse, we'll provide a way to get the full text
-        response = await model.generate_content_async(
-            full_prompt, 
+        # Pass conversational history directly
+        response = await model_with_sys.generate_content_async(
+            chat_history, 
             safety_settings=safety_settings
         )
         full_response_text = response.text if response.text else "Σφάλμα. Δεν μπορώ να απαντήσω."
@@ -288,26 +284,24 @@ async def chat_endpoint(request: ChatRequest):
         "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
     }
 
-    # Keep LLM context short to optimize latency (keep last 4 turns)
+    # Ensure strict conversational history for complete context
     chat_history = []
-    recent_history = request.history[-4:] if len(request.history) > 4 else request.history
-    for msg in recent_history:
+    for msg in request.history:
         role = "user" if msg.role == "user" else "model"
         chat_history.append({"role": role, "parts": [msg.content]})
 
     sys_instr = get_system_instructions()
-    full_prompt = sys_instr + "\n\nConversation History:\n"
-    for msg in chat_history:
-        full_prompt += f"{msg['role'].upper()}: {msg['parts'][0]}\n"
-
-    full_prompt += f"USER: {request.message}\nAI:"
+    model_with_sys = genai.GenerativeModel('gemini-1.5-flash', system_instruction=sys_instr)
+    
+    # Append current user message
+    chat_history.append({"role": "user", "parts": [request.message]})
 
     async def generate_and_log():
         full_response_text = ""
         try:
             # Call Gemini natively ASYNC with stream=True
-            response_stream = await model.generate_content_async(
-                full_prompt, 
+            response_stream = await model_with_sys.generate_content_async(
+                chat_history, 
                 safety_settings=safety_settings,
                 stream=True
             )
@@ -418,15 +412,18 @@ async def chat_completions(request: Request):
         cmpl_id = f"chatcmpl-{uuid.uuid4()}"
         created_time = int(datetime.now().timestamp())
 
-        # Construct Gemini Prompt (Short context)
+        # Construct Gemini prompt with full conversational history
         sys_instr = get_system_instructions()
-        full_prompt = sys_instr + "\n\nConversation History:\n"
-        for msg in history[-4:]:
-            full_prompt += f"{msg.role.upper()}: {msg.content}\n"
-        full_prompt += f"USER: {user_message}\nAI:"
+        model_with_sys = genai.GenerativeModel('gemini-1.5-flash', system_instruction=sys_instr)
+
+        chat_history = []
+        for msg in history:
+            role = "user" if msg.role == "user" else "model"
+            chat_history.append({"role": role, "parts": [msg.content]})
+        chat_history.append({"role": "user", "parts": [user_message]})
 
         try:
-            response_stream = await model.generate_content_async(full_prompt, stream=True)
+            response_stream = await model_with_sys.generate_content_async(chat_history, stream=True)
             async for chunk in response_stream:
                 if chunk.text:
                     full_response_text += chunk.text
@@ -515,7 +512,8 @@ async def vapi_webhook(request: Request):
                         "model": "nova-2",
                         "language": "el",
                         "smartFormat": True,
-                        "keywords": ["Γιαννάκης:10", "Σκεμπετζής:10", "Μπεζής:10", "ανταλλακτικά:5", "σέρβις:5"]
+                        "keywords": ["Σκεμπετζής:10", "Coprime:10", "clark:8", "ανυψωτικό:8", "service:5", "παλετοφόρο:5"],
+                        "replace": ["Skempetzis:Σκεμπετζής", "Coprime:Coprime"]
                     },
                     "vapi": {
                         "vadSensitivity": 0.3,
@@ -588,56 +586,61 @@ async def vapi_webhook(request: Request):
 
 
 
-# --- Google Cloud Speech-to-Text Streaming ---
-
-def generate_stt_requests(audio_queue: queue.Queue):
-    while True:
-        chunk = audio_queue.get()
-        if chunk is None:
-            break
-        yield speech.StreamingRecognizeRequest(audio_content=chunk)
+# --- Deepgram Streaming ---
 
 def recognize_stream(audio_queue: queue.Queue, websocket: WebSocket, language_code: str, loop: asyncio.AbstractEventLoop):
-    if not speech_client:
-        asyncio.run_coroutine_threadsafe(websocket.send_json({"error": "Google STT not configured (Service Account JSON missing?)"}), loop)
+    if not deepgram_client:
+        asyncio.run_coroutine_threadsafe(websocket.send_json({"error": "Deepgram not configured (API Key missing?)"}), loop)
         return
         
-    config = speech.RecognitionConfig(
-        encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
-        sample_rate_hertz=48000,
-        language_code=language_code,
-        enable_automatic_punctuation=True
-    )
-    streaming_config = speech.StreamingRecognitionConfig(
-        config=config,
-        interim_results=True
-    )
-
-    requests = generate_stt_requests(audio_queue)
     try:
-        responses = speech_client.streaming_recognize(streaming_config, requests)
-        
-        for response in responses:
-            if not response.results:
-                continue
+        # Create websocket connection to Deepgram
+        dg_connection = deepgram_client.listen.live.v("1")
 
-            result = response.results[0]
-            if not result.alternatives:
-                continue
-                
-            transcript = result.alternatives[0].transcript
-            is_final = result.is_final
+        def on_message(self, result, **kwargs):
+            if not result.channel.alternatives:
+                return
+            transcript = result.channel.alternatives[0].transcript
+            if transcript:
+                is_final = result.is_final
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        websocket.send_json({
+                            "transcript": transcript,
+                            "is_final": is_final
+                        }), 
+                        loop
+                    )
+                except Exception:
+                    pass
+
+        def on_error(self, error, **kwargs):
+            print(f"Deepgram Error: {error}")
             
-            asyncio.run_coroutine_threadsafe(
-                websocket.send_json({
-                    "transcript": transcript,
-                    "is_final": is_final
-                }), 
-                loop
-            )
+        dg_connection.on(LiveTranscriptionEvents.Transcript, on_message)
+        dg_connection.on(LiveTranscriptionEvents.Error, on_error)
+        
+        options = LiveOptions(
+            model="nova-2",
+            language=language_code[:2],
+            smart_format=True
+        )
+        
+        if not dg_connection.start(options):
+            print("Failed to start Deepgram connection")
+            return
+            
+        # Push audio chunks from queue
+        while True:
+            chunk = audio_queue.get()
+            if chunk is None:
+                break
+            dg_connection.send(chunk)
+            
+        dg_connection.finish()
             
     except Exception as e:
-        print(f"Google STT Stream Error: {e}")
+        print(f"Deepgram STT Stream Error: {e}")
         try:
             asyncio.run_coroutine_threadsafe(websocket.send_json({"error": f"STT Stream Error: {str(e)}"}), loop)
         except Exception:
