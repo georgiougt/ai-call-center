@@ -8,4 +8,4 @@ websockets
 google-cloud-speech
 pydantic
 google-auth
-deepgram-sdk
+deepgram-sdk==3.7.0
