@@ -81,6 +81,17 @@ async def init_db():
             )
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS sales_leads (
+                id SERIAL PRIMARY KEY,
+                conversation_id INTEGER REFERENCES conversations(id) ON DELETE SET NULL,
+                name TEXT NOT NULL,
+                phone TEXT,
+                company TEXT,
+                timestamp TEXT NOT NULL DEFAULT (NOW()::TEXT)
+            )
+        """)
+
         # Indexes for common queries
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_messages_conversation 
@@ -182,6 +193,18 @@ async def save_repair_request(name: str, serial: str, issue: Optional[str] = Non
         if conversation_id:
             await mark_conversation_has_repair(conversation_id)
 
+        return row["id"]
+
+
+async def save_sales_lead(name: str, phone: Optional[str] = None, company: Optional[str] = None,
+                          conversation_id: Optional[int] = None) -> int:
+    """Save a sales lead to the database."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO sales_leads (conversation_id, name, phone, company, timestamp) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+            conversation_id, name, phone, company, datetime.now().isoformat()
+        )
         return row["id"]
 
 

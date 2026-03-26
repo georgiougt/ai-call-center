@@ -130,6 +130,7 @@ def parse_response(response_text: str):
     """Parse AI response for TRANSFER label and DATA payload."""
     department = None
     repair_data = None
+    sales_data = None
 
     if "TRANSFER:" in response_text:
         parts = response_text.split("TRANSFER:")
@@ -145,7 +146,6 @@ def parse_response(response_text: str):
             import ast
             data_part = response_text.split("DATA:")[1].strip()
             # Remove any trailing text after the dict
-            # Find the closing brace
             brace_count = 0
             end_idx = 0
             for i, char in enumerate(data_part):
@@ -157,11 +157,21 @@ def parse_response(response_text: str):
                         end_idx = i + 1
                         break
             data_part = data_part[:end_idx]
-            repair_data = ast.literal_eval(data_part)
+            extracted_data = ast.literal_eval(data_part)
+            
+            # Identify if it's repair or sales based on keys
+            if "serial" in extracted_data or "issue" in extracted_data:
+                repair_data = extracted_data
+            elif "phone" in extracted_data or "company" in extracted_data:
+                sales_data = extracted_data
+            else:
+                # Generic fallback if keys are missing but data exists
+                repair_data = extracted_data
+                
         except Exception as e:
             print(f"⚠️ Failed to parse DATA: {e}")
 
-    return department, repair_data
+    return department, repair_data, sales_data
 
 
 # --- Chat Endpoint (Streaming JS-compatible SSE) ---
@@ -177,7 +187,7 @@ async def get_gemini_response(message: str, history: List[MessageCreate], sessio
     if not model:
         response_text = mock_llm_logic(message, history)
         await db.add_message(conversation_id, "model", response_text)
-        return response_text, None, None
+        return response_text, None, None, None
 
     # Safety Settings
     safety_settings = {
@@ -219,8 +229,8 @@ async def get_gemini_response(message: str, history: List[MessageCreate], sessio
         # 1. Log AI Response
         await db.add_message(conversation_id, "model", full_response_text.strip())
 
-        # 2. Parse Routing & Repair Data
-        department, repair_data = parse_response(full_response_text)
+        # 2. Parse Routing & Repair/Sales Data
+        department, repair_data, sales_data = parse_response(full_response_text)
 
         if department:
             await db.update_conversation_routing(conversation_id, department)
@@ -234,7 +244,16 @@ async def get_gemini_response(message: str, history: List[MessageCreate], sessio
             )
             print(f"[OK] Saved Repair Request to DB: {repair_data}")
 
-        return full_response_text, department, repair_data
+        if sales_data:
+            await db.save_sales_lead(
+                name=sales_data.get("name", ""),
+                phone=sales_data.get("phone"),
+                company=sales_data.get("company"),
+                conversation_id=conversation_id
+            )
+            print(f"[OK] Saved Sales Lead to DB: {sales_data}")
+
+        return full_response_text, department, repair_data, sales_data
 
     except Exception as db_err:
         print(f"[WARN] Failed post-processing routing/DB save: {db_err}")
@@ -325,8 +344,8 @@ async def chat_endpoint(request: ChatRequest):
             # 1. Log AI Response
             await db.add_message(conversation_id, "model", full_response_text.strip())
 
-            # 2. Parse Routing & Repair Data
-            department, repair_data = parse_response(full_response_text)
+            # 2. Parse Routing & Data
+            department, repair_data, sales_data = parse_response(full_response_text)
 
             if department:
                 await db.update_conversation_routing(conversation_id, department)
@@ -339,6 +358,15 @@ async def chat_endpoint(request: ChatRequest):
                     conversation_id=conversation_id
                 )
                 print(f"[OK] Saved Repair Request to DB: {repair_data}")
+
+            if sales_data:
+                await db.save_sales_lead(
+                    name=sales_data.get("name", ""),
+                    phone=sales_data.get("phone"),
+                    company=sales_data.get("company"),
+                    conversation_id=conversation_id
+                )
+                print(f"[OK] Saved Sales Lead to DB: {sales_data}")
 
         except Exception as db_err:
             print(f"[WARN] Failed post-processing routing/DB save: {db_err}")
@@ -371,7 +399,7 @@ async def chat_completions(request: Request):
     
     if not stream_requested:
         # Non-streaming implementation
-        response_text, department, repair_data = await get_gemini_response(user_message, history, vapi_session_id)
+        response_text, department, repair_data, sales_data = await get_gemini_response(user_message, history, vapi_session_id)
         return {
             "id": f"chatcmpl-{uuid.uuid4()}",
             "object": "chat.completion",
@@ -417,13 +445,20 @@ async def chat_completions(request: Request):
 
             # Post-processing (Logging & Routing)
             await db.add_message(conversation_id, "model", full_response_text.strip())
-            department, repair_data = parse_response(full_response_text)
+            department, repair_data, sales_data = parse_response(full_response_text)
             if department: await db.update_conversation_routing(conversation_id, department)
             if repair_data:
                 await db.save_repair_request(
                     name=repair_data.get("name", ""),
                     serial=repair_data.get("serial", ""),
                     issue=repair_data.get("issue"),
+                    conversation_id=conversation_id
+                )
+            if sales_data:
+                await db.save_sales_lead(
+                    name=sales_data.get("name", ""),
+                    phone=sales_data.get("phone"),
+                    company=sales_data.get("company"),
                     conversation_id=conversation_id
                 )
 
@@ -460,7 +495,7 @@ async def vapi_webhook(request: Request):
             return {
                 "assistant": {
                     "name": "Giannakis Call Center AI",
-                    "firstMessage": "Καλησπέρα σας, καλέσατε την Γιαννάκης Σκεμπετζής και Υιοί. Πώς μπορώ να σας εξυπηρετήσω;",
+                    "firstMessage": "Καλωσορίσατε στην εταιρεία Γ. Σκεμπετζής και Υιοί. Για την καλύτερη εξυπηρέτησή σας, παρακαλώ πείτε μου με ποιο τμήμα ή υποκατάστημα θέλετε να συνδεθείτε: Λευκωσία, Λεμεσό, το Εκπαιδευτικό μας Κέντρο ή το Λογιστήριο;",
                     "model": {
                         "provider": "custom-llm",
                         "url": f"{base_url}/v1", 
