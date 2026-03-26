@@ -20,11 +20,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger("server")
 logger.info("Initializing server...")
 
-from deepgram import (
-    DeepgramClient,
-    LiveTranscriptionEvents,
-    LiveOptions,
-)
+from google.cloud import speech
+from google.oauth2 import service_account
 
 import database as db
 from models import (
@@ -47,18 +44,22 @@ else:
     print("WARNING: GEMINI_API_KEY not found in .env. Using mock fallback.")
     model = None
 
-# Configure Deepgram
+# Configure Google Speech-to-Text
 try:
-    DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
-    if DEEPGRAM_API_KEY:
-        deepgram_client = DeepgramClient(DEEPGRAM_API_KEY)
-        print("[OK] Deepgram initialized.")
+    credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+    if credentials_json:
+        # Load credentials from JSON string (Ideal for Render/Cloud)
+        creds_info = json.loads(credentials_json)
+        credentials = service_account.Credentials.from_service_account_info(creds_info)
+        speech_client = speech.SpeechClient(credentials=credentials)
+        print("[OK] Google Speech-to-Text initialized via Environment Variable.")
     else:
-        deepgram_client = None
-        print("WARNING: DEEPGRAM_API_KEY not found in .env.")
+        # Fallback to local file path
+        speech_client = speech.SpeechClient()
+        print("[OK] Google Speech-to-Text initialized via default credentials (file).")
 except Exception as e:
-    print(f"WARNING: Deepgram client failed to initialize: {e}")
-    deepgram_client = None
+    print(f"WARNING: Google Speech-to-Text client failed to initialize: {e}")
+    speech_client = None
 
 
 # --- App Lifecycle ---
@@ -512,8 +513,7 @@ async def vapi_webhook(request: Request):
                         "model": "nova-2",
                         "language": "el",
                         "smartFormat": True,
-                        "keywords": ["Σκεμπετζής:10", "Coprime:10", "clark:8", "ανυψωτικό:8", "service:5", "παλετοφόρο:5"],
-                        "replace": ["Skempetzis:Σκεμπετζής", "Coprime:Coprime"]
+                        "keywords": ["Γιαννάκης:10", "Σκεμπετζής:10", "Μπεζής:10", "ανταλλακτικά:5", "σέρβις:5"]
                     },
                     "vapi": {
                         "vadSensitivity": 0.3,
@@ -586,61 +586,56 @@ async def vapi_webhook(request: Request):
 
 
 
-# --- Deepgram Streaming ---
+# --- Google Cloud Speech-to-Text Streaming ---
+
+def generate_stt_requests(audio_queue: queue.Queue):
+    while True:
+        chunk = audio_queue.get()
+        if chunk is None:
+            break
+        yield speech.StreamingRecognizeRequest(audio_content=chunk)
 
 def recognize_stream(audio_queue: queue.Queue, websocket: WebSocket, language_code: str, loop: asyncio.AbstractEventLoop):
-    if not deepgram_client:
-        asyncio.run_coroutine_threadsafe(websocket.send_json({"error": "Deepgram not configured (API Key missing?)"}), loop)
+    if not speech_client:
+        asyncio.run_coroutine_threadsafe(websocket.send_json({"error": "Google STT not configured (Service Account JSON missing?)"}), loop)
         return
         
+    config = speech.RecognitionConfig(
+        encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
+        sample_rate_hertz=48000,
+        language_code=language_code,
+        enable_automatic_punctuation=True
+    )
+    streaming_config = speech.StreamingRecognitionConfig(
+        config=config,
+        interim_results=True
+    )
+
+    requests = generate_stt_requests(audio_queue)
     try:
-        # Create websocket connection to Deepgram
-        dg_connection = deepgram_client.listen.live.v("1")
-
-        def on_message(self, result, **kwargs):
-            if not result.channel.alternatives:
-                return
-            transcript = result.channel.alternatives[0].transcript
-            if transcript:
-                is_final = result.is_final
-                try:
-                    asyncio.run_coroutine_threadsafe(
-                        websocket.send_json({
-                            "transcript": transcript,
-                            "is_final": is_final
-                        }), 
-                        loop
-                    )
-                except Exception:
-                    pass
-
-        def on_error(self, error, **kwargs):
-            print(f"Deepgram Error: {error}")
-            
-        dg_connection.on(LiveTranscriptionEvents.Transcript, on_message)
-        dg_connection.on(LiveTranscriptionEvents.Error, on_error)
+        responses = speech_client.streaming_recognize(streaming_config, requests)
         
-        options = LiveOptions(
-            model="nova-2",
-            language=language_code[:2],
-            smart_format=True
-        )
-        
-        if not dg_connection.start(options):
-            print("Failed to start Deepgram connection")
-            return
+        for response in responses:
+            if not response.results:
+                continue
+
+            result = response.results[0]
+            if not result.alternatives:
+                continue
+                
+            transcript = result.alternatives[0].transcript
+            is_final = result.is_final
             
-        # Push audio chunks from queue
-        while True:
-            chunk = audio_queue.get()
-            if chunk is None:
-                break
-            dg_connection.send(chunk)
-            
-        dg_connection.finish()
+            asyncio.run_coroutine_threadsafe(
+                websocket.send_json({
+                    "transcript": transcript,
+                    "is_final": is_final
+                }), 
+                loop
+            )
             
     except Exception as e:
-        print(f"Deepgram STT Stream Error: {e}")
+        print(f"Google STT Stream Error: {e}")
         try:
             asyncio.run_coroutine_threadsafe(websocket.send_json({"error": f"STT Stream Error: {str(e)}"}), loop)
         except Exception:
