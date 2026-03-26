@@ -762,12 +762,8 @@
             history = [];
             sessionId = null;
 
-            const greetings = [
-                "Καλησπέρα σας, καλέσατε την Γιαννάκης Σκεμπετζής και Υἱοί. Πώς μπορώ να σας εξυπηρετήσω;",
-                "Γεια σας, έχετε καλέσει την Γιαννάκης Σκεμπετζής. Τι μπορώ να κάνω για σας σήμερα;",
-                "Καλησπέρα, Γιαννάκης Σκεμπετζής και Υἱοί. Πώς μπορώ να σας βοηθήσω;"
-            ];
-            const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+            // We want the AI to ALWAYS start with the standard greeting required by the new logic.
+            const greeting = "Καλωσορίσατε στην εταιρεία Γ. Σκεμπετζής και Υιοί. Για την καλύτερη εξυπηρέτησή σας, παρακαλώ πείτε μου με ποιο τμήμα ή υποκατάστημα θέλετε να συνδεθείτε: Λευκωσία, Λεμεσό, το Εκπαιδευτικό μας Κέντρο ή το Λογιστήριο;";
 
             addMessage('ai', greeting);
 
@@ -910,37 +906,10 @@
 
             const mode = document.querySelector('input[name="voiceProvider"]:checked').value;
 
-            // 3. Early Intent Bypass Check (skip the LLM entirely if we hit a simple, confident phrase)
-            const localRes = mockLocalLogic(normalizedText, isEnglish);
-            if (localRes.transferLabel) {
-                // Confident local intent match.
-                if (mode === 'elevenlabs') playCachedFiller(randomFiller, () => { });
+            // 3. Early Intent Bypass Check
+            // We NO LONGER bypass the backend. Gemini must handle the structured call flow.
+            // (Removed the localRes short-circuit block so every message goes to server.py)
 
-                const thinkingBubble = document.getElementById('thinkingBubble');
-                if (thinkingBubble) thinkingBubble.remove();
-
-                history.push({ role: 'ai', content: localRes.response });
-                const aiMessageDiv = document.createElement('div');
-                aiMessageDiv.className = 'message ai';
-                aiMessageDiv.textContent = `AI: ${localRes.response}`;
-                conversationDiv.appendChild(aiMessageDiv);
-
-                const transferDiv = document.createElement('div');
-                transferDiv.style.color = '#ee9b00';
-                transferDiv.style.fontWeight = 'bold';
-                transferDiv.style.marginTop = '10px';
-                transferDiv.textContent = `TRANSFERRING TO: ${localRes.transferLabel}`;
-                conversationDiv.appendChild(transferDiv);
-                conversationDiv.scrollTop = conversationDiv.scrollHeight;
-
-                isProcessing = false;
-                if (mode === 'elevenlabs') {
-                    speak(localRes.response, lang, () => finishCallLoop(localRes.transferLabel));
-                } else {
-                    speakBrowser(localRes.response, lang, () => finishCallLoop(localRes.transferLabel));
-                }
-                return; // Do not call the backend!
-            }
 
             // Standard fallback: Play filler and call Backend
             if (mode === 'elevenlabs') {
