@@ -8,3 +8,4 @@ websockets
 google-cloud-speech
 pydantic
 google-auth
+deepgram-sdk
