@@ -552,6 +552,7 @@ async def vapi_webhook(request: Request):
             artifact_data = message.get("artifact", {})
             
             vapi_id = call_data.get("id") or message.get("callId") or "unknown"
+            summary = message.get("summary") or call_data.get("summary") or artifact_data.get("summary", "")
             
             try:
                 session_id = f"vapi-call-{vapi_id}"
