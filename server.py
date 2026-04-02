@@ -288,14 +288,22 @@ async def chat_endpoint(request: ChatRequest):
     # Ensure strict conversational history for complete context
     chat_history = []
     for msg in request.history:
+        if msg.role == "system":
+            continue
         role = "user" if msg.role == "user" else "model"
-        chat_history.append({"role": role, "parts": [msg.content]})
+        if chat_history and chat_history[-1]["role"] == role:
+            chat_history[-1]["parts"][0] += f"\n{msg.content}"
+        else:
+            chat_history.append({"role": role, "parts": [msg.content]})
 
     sys_instr = get_system_instructions()
     model_with_sys = genai.GenerativeModel('gemini-flash-latest', system_instruction=sys_instr)
     
     # Append current user message
-    chat_history.append({"role": "user", "parts": [request.message]})
+    if chat_history and chat_history[-1]["role"] == "user":
+        chat_history[-1]["parts"][0] += f"\n{request.message}"
+    else:
+        chat_history.append({"role": "user", "parts": [request.message]})
 
     async def generate_and_log():
         full_response_text = ""
@@ -418,10 +426,17 @@ async def chat_completions(request: Request):
         model_with_sys = genai.GenerativeModel('gemini-flash-latest', system_instruction=sys_instr)
 
         chat_history = []
-        for msg in history:
-            role = "user" if msg.role == "user" else "model"
-            chat_history.append({"role": role, "parts": [msg.content]})
-        chat_history.append({"role": "user", "parts": [user_message]})
+        for m in messages:
+            if m.get("role") == "system":
+                continue
+            
+            r = "user" if m.get("role") == "user" else "model"
+            content = m.get("content", "")
+            
+            if chat_history and chat_history[-1]["role"] == r:
+                chat_history[-1]["parts"][0] += f"\n{content}"
+            else:
+                chat_history.append({"role": r, "parts": [content]})
 
         try:
             response_stream = await model_with_sys.generate_content_async(chat_history, stream=True)
