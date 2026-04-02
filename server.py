@@ -438,6 +438,9 @@ async def chat_completions(request: Request):
             else:
                 chat_history.append({"role": r, "parts": [content]})
 
+        if not chat_history:
+            chat_history.append({"role": "user", "parts": ["Hello"]})
+
         try:
             response_stream = await model_with_sys.generate_content_async(chat_history, stream=True)
             async for chunk in response_stream:
