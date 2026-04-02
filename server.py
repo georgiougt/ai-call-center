@@ -442,16 +442,22 @@ async def chat_completions(request: Request):
             chat_history.append({"role": "user", "parts": ["Hello"]})
 
         try:
+            is_first_chunk = True
             response_stream = await model_with_sys.generate_content_async(chat_history, stream=True)
             async for chunk in response_stream:
                 if chunk.text:
                     full_response_text += chunk.text
+                    delta_payload = {"content": chunk.text}
+                    if is_first_chunk:
+                        delta_payload["role"] = "assistant"
+                        is_first_chunk = False
+                        
                     chunk_payload = {
                         "id": cmpl_id,
                         "object": "chat.completion.chunk",
                         "created": created_time,
                         "model": "gemini-flash-latest",
-                        "choices": [{"index": 0, "delta": {"content": chunk.text}, "finish_reason": None}]
+                        "choices": [{"index": 0, "delta": delta_payload, "finish_reason": None}]
                     }
                     yield f"data: {json.dumps(chunk_payload)}\n\n"
             
