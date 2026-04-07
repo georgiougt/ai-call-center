@@ -1020,14 +1020,18 @@
                                                         // Buffer flush
                                                         if (socketBuffer.length > 0) {
                                                             socket.send(JSON.stringify({
-                                                                "text": socketBuffer.join(""),
+                                                                "text": socketBuffer.join(" ") + " ",
                                                                 "try_trigger_generation": true
                                                             }));
                                                             socketBuffer = [];
                                                         }
-                                                        // Stream close
+                                                        // Stream close: Delayed to prevent ElevenLabs dropping concurrent WebSocket packets
                                                         if (isStreamComplete) {
-                                                            socket.send(JSON.stringify({ "text": "" }));
+                                                            setTimeout(() => {
+                                                                if (socket.readyState === WebSocket.OPEN) {
+                                                                    socket.send(JSON.stringify({ "text": "" }));
+                                                                }
+                                                            }, 150);
                                                         }
                                                     }
                                                 });
@@ -1057,9 +1061,13 @@
 
 
                     isStreamComplete = true;
-                    // Signal End of Stream to ElevenLabs
+                    // Signal End of Stream to ElevenLabs with delay to avoid dropping the final chunk
                     if (elevenLabsSocket && elevenLabsSocket.readyState === WebSocket.OPEN) {
-                        elevenLabsSocket.send(JSON.stringify({ "text": "" })); // Empty string tells WS we are done
+                        setTimeout(() => {
+                            if (elevenLabsSocket.readyState === WebSocket.OPEN) {
+                                elevenLabsSocket.send(JSON.stringify({ "text": "" }));
+                            }
+                        }, 150);
                     } else if (mode === 'elevenlabs' && !socketConnecting) {
                         // Backend returned no text at all, so ElevenLabs was never triggered
                         isProcessing = false;
