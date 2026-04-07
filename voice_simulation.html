@@ -528,7 +528,7 @@
 
                         const audioBlob = await response.blob();
                         const audioUrl = URL.createObjectURL(audioBlob);
-                        
+
                         globalAudioPlayer.src = audioUrl;
 
                         globalAudioPlayer.onended = () => {
@@ -767,7 +767,7 @@
             sessionId = null;
 
             // We want the AI to ALWAYS start with the standard greeting required by the new logic.
-            const greeting = "Καλωσορίσατε στην εταιρεία Γιαννάκης Σκεμπετζής και Υιοί. Για την καλύτερη εξυπηρέτησή σας, παρακαλώ πείτε μου με ποιο τμήμα ή υποκατάστημα θέλετε να συνδεθείτε: Λευκωσία, Λεμεσό, το Εκπαιδευτικό μας Κέντρο ή το Λογιστήριο;";
+            const greeting = "Καλωσορίσατε στην εταιρεία Γιαννάκης Σκεμπετζής και υιοί. Για την καλύτερη εξυπηρέτησή σας, παρακαλώ πείτε μου με ποιο τμήμα ή υποκατάστημα θέλετε να συνδεθείτε: Λευκωσία, Λεμεσό, το Εκπαιδευτικό μας Κέντρο ή το Λογιστήριο;";
 
             addMessage('ai', greeting);
 
@@ -1031,7 +1031,7 @@
                                                         // Buffer flush
                                                         if (socketBuffer.length > 0) {
                                                             socket.send(JSON.stringify({
-                                                                "text": socketBuffer.join(" ") + " ",
+                                                                "text": socketBuffer.join(""),
                                                                 "try_trigger_generation": true
                                                             }));
                                                             socketBuffer = [];
@@ -1047,10 +1047,16 @@
                                                     }
                                                 });
                                             } else if (elevenLabsSocket && elevenLabsSocket.readyState === WebSocket.OPEN) {
-                                                elevenLabsSocket.send(JSON.stringify({
-                                                    "text": dataPayload.chunk,
-                                                    "try_trigger_generation": true
-                                                }));
+                                                socketBuffer.push(dataPayload.chunk);
+                                                const combinedText = socketBuffer.join("");
+                                                // Buffer text until we hit a space or punctuation to prevent broken chunks
+                                                if (/[ \.,:;!\?\n]$/.test(combinedText) || combinedText.length > 30) {
+                                                    elevenLabsSocket.send(JSON.stringify({
+                                                        "text": combinedText,
+                                                        "try_trigger_generation": true
+                                                    }));
+                                                    socketBuffer = [];
+                                                }
                                             } else {
                                                 socketBuffer.push(dataPayload.chunk);
                                             }
@@ -1074,6 +1080,14 @@
                     isStreamComplete = true;
                     // Signal End of Stream to ElevenLabs with delay to avoid dropping the final chunk
                     if (elevenLabsSocket && elevenLabsSocket.readyState === WebSocket.OPEN) {
+                        // Flush any remaining text in the buffer that didn't trigger a generation block
+                        if (socketBuffer.length > 0) {
+                            elevenLabsSocket.send(JSON.stringify({
+                                "text": socketBuffer.join("") + " ",
+                                "try_trigger_generation": true
+                            }));
+                            socketBuffer = [];
+                        }
                         setTimeout(() => {
                             if (elevenLabsSocket.readyState === WebSocket.OPEN) {
                                 elevenLabsSocket.send(JSON.stringify({ "text": "" }));
