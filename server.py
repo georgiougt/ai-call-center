@@ -117,7 +117,7 @@ def get_system_instructions():
         return "You are a helpful AI assistant."
 def mock_llm_logic(user_input, history: List[MessageCreate]):
     if not history:
-        return "Καλωσορίσατε στην εταιρεία Γιαννάκης Σκεμπετζής και Υιοί. Για την καλύτερη εξυπηρέτησή σας, παρακαλώ πείτε μου με ποιο τμήμα ή υποκατάστημα θέλετε να συνδεθείτε: Λευκωσία, Λεμεσό, το Εκπαιδευτικό μας Κέντρο ή το Λογιστήριο;"
+        return "Καλωσορίσατε στην εταιρεία Γιαννάκης Σκεμπετζής. Για την καλύτερη εξυπηρέτησή σας, παρακαλώ πείτε μου με ποιο τμήμα ή υποκατάστημα θέλετε να συνδεθείτε: Λευκωσία, Λεμεσό, το Εκπαιδευτικό μας Κέντρο ή το Λογιστήριο;"
     normalized_text = user_input.lower()
     if "part" in normalized_text or "ανταλλακ" in normalized_text:
         return "Μάλιστα, θα σας συνδέσω με το τμήμα ανταλλακτικών. TRANSFER: SPARE_PARTS"
@@ -398,7 +398,9 @@ async def chat_completions(request: Request):
         role = "user" if m.get("role") == "user" else "model"
         history.append(MessageCreate(role=role, content=m.get("content", "")))
     
-    vapi_session_id = data.get("user", f"vapi-{uuid.uuid4()}")
+    vapi_call = data.get("call", {})
+    call_id = vapi_call.get("id") or request.headers.get("x-vapi-call-id") or data.get("user")
+    vapi_session_id = f"vapi-call-{call_id}" if call_id else f"vapi-{uuid.uuid4()}"
     
     if not stream_requested:
         # Non-streaming implementation
@@ -517,7 +519,7 @@ async def vapi_webhook(request: Request):
             return {
                 "assistant": {
                     "name": "Giannakis Call Center AI",
-                    "firstMessage": "Καλωσορίσατε στην εταιρεία Γιαννάκης Σκεμπετζής και Υιοί. Για την καλύτερη εξυπηρέτησή σας, παρακαλώ πείτε μου με ποιο τμήμα ή υποκατάστημα θέλετε να συνδεθείτε: Λευκωσία, Λεμεσό, το Εκπαιδευτικό μας Κέντρο ή το Λογιστήριο;",
+                    "firstMessage": "Καλωσορίσατε στην εταιρεία Γιαννάκης Σκεμπετζής. Για την καλύτερη εξυπηρέτησή σας, παρακαλώ πείτε μου με ποιο τμήμα ή υποκατάστημα θέλετε να συνδεθείτε: Λευκωσία, Λεμεσό, το Εκπαιδευτικό μας Κέντρο ή το Λογιστήριο;",
                     "model": {
                         "provider": "custom-llm",
                         "url": f"{base_url}/v1", 
