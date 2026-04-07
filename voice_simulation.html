@@ -528,22 +528,28 @@
 
                         const audioBlob = await response.blob();
                         const audioUrl = URL.createObjectURL(audioBlob);
-                        const audio = new Audio(audioUrl);
+                        
+                        globalAudioPlayer.src = audioUrl;
 
-                        audio.onended = () => {
+                        globalAudioPlayer.onended = () => {
                             isProcessing = false;
                             statusDiv.textContent = "Waiting...";
                             if (callback) callback();
                         };
 
-                        audio.onerror = (e) => {
+                        globalAudioPlayer.onerror = (e) => {
                             console.error("Audio playback error:", e);
                             isProcessing = false;
                             statusDiv.textContent = "Audio playback failed.";
                             if (callback) callback();
                         };
 
-                        audio.play();
+                        globalAudioPlayer.play().catch(e => {
+                            console.error("ElevenLabs Direct Play Error:", e);
+                            isProcessing = false;
+                            statusDiv.textContent = "Audio playback failed.";
+                            if (callback) callback();
+                        });
 
                     } catch (error) {
                         console.error("ElevenLabs Error (Static):", error);
@@ -585,10 +591,9 @@
                                 }
                                 const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
                                 const audioUrl = URL.createObjectURL(blob);
-                                const audio = new Audio(audioUrl);
 
-                                // Audio queue logic to play chunks sequentially
-                                playAudioChunk(audio);
+                                // Audio queue logic to play chunks sequentially using global unlocked player
+                                playAudioChunk(audioUrl);
                             }
                             if (response.error) {
                                 console.error("ElevenLabs API Error:", response.error);
@@ -677,12 +682,12 @@
             history.push({ role, content: text });
         }
 
-        let currentAudio = null; // Track audio for interruption
+        const globalAudioPlayer = new Audio();
         let audioQueue = [];
         let isPlaying = false;
 
-        function playAudioChunk(audioElement) {
-            audioQueue.push(audioElement);
+        function playAudioChunk(audioUrl) {
+            audioQueue.push(audioUrl);
             if (!isPlaying) {
                 playNextAudio();
             }
@@ -701,23 +706,21 @@
             }
 
             isPlaying = true;
-            currentAudio = audioQueue.shift();
+            const currentAudioUrl = audioQueue.shift();
 
-            // Check for Audio play rejection
-            currentAudio.play().catch(e => {
-                console.error("Audio block playback failed!", e);
-                currentAudio = null;
+            // Set src and check for play rejection on mobile
+            globalAudioPlayer.src = currentAudioUrl;
+            globalAudioPlayer.play().catch(e => {
+                console.error("Audio block playback failed. Mobile restrictions?", e);
                 playNextAudio();
             });
 
-            currentAudio.onerror = (e) => {
+            globalAudioPlayer.onerror = (e) => {
                 console.error("Audio object error!", e);
-                currentAudio = null;
                 playNextAudio();
             };
 
-            currentAudio.onended = () => {
-                currentAudio = null;
+            globalAudioPlayer.onended = () => {
                 playNextAudio();
             };
         }
@@ -728,10 +731,11 @@
                 synthesis.cancel();
             }
             // 2. Stop ElevenLabs Audio
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio = null;
+            if (globalAudioPlayer && !globalAudioPlayer.paused) {
+                globalAudioPlayer.pause();
+                globalAudioPlayer.currentTime = 0;
             }
+            audioQueue = [];
             // 3. Abort Backend Request
             if (conversationController) {
                 conversationController.abort();
@@ -766,6 +770,13 @@
             const greeting = "Καλωσορίσατε στην εταιρεία Γιαννάκης Σκεμπετζής και Υιοί. Για την καλύτερη εξυπηρέτησή σας, παρακαλώ πείτε μου με ποιο τμήμα ή υποκατάστημα θέλετε να συνδεθείτε: Λευκωσία, Λεμεσό, το Εκπαιδευτικό μας Κέντρο ή το Λογιστήριο;";
 
             addMessage('ai', greeting);
+
+            // Unlock iOS Safari Web Audio dynamically on the first user interaction
+            globalAudioPlayer.src = "data:audio/mp3;base64,//OExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+            globalAudioPlayer.play().then(() => {
+                globalAudioPlayer.pause();
+                globalAudioPlayer.currentTime = 0;
+            }).catch(e => console.log("Audio unlock failed:", e));
 
             speak(greeting, 'el-GR', () => { startListening(); });
         }
