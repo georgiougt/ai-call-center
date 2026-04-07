@@ -945,27 +945,8 @@
                 let socketConnecting = false;
                 let streamBuffer = ""; // Track incomplete chunks
 
-                // 3.1 Start ElevenLabs WebSocket immediately in parallel to hide 1s connection latency
-                if (mode === 'elevenlabs') {
-                    socketConnecting = true;
-                    speak(null, lang, (socket) => {
-                        if (socket) {
-                            elevenLabsSocket = socket;
-                            // Buffer flush
-                            if (socketBuffer.length > 0) {
-                                socket.send(JSON.stringify({
-                                    "text": socketBuffer.join(" "),
-                                    "try_trigger_generation": true
-                                }));
-                                socketBuffer = [];
-                            }
-                            // Stream close
-                            if (isStreamComplete) {
-                                socket.send(JSON.stringify({ "text": "" }));
-                            }
-                        }
-                    });
-                }
+                // We defer starting the ElevenLabs WebSocket until we receive the first chunk
+                // from the backend to avoid 'input_timeout_exceeded' if the LLM is slow to start.
 
                 try {
                     const host = window.location.host || 'localhost:8000';
@@ -1028,9 +1009,29 @@
                                         aiMessageDiv.textContent = `AI: ${displayText}`;
                                         conversationDiv.scrollTop = conversationDiv.scrollHeight;
 
-                                        // Push text to ElevenLabs immediately if socket is open
+                                        // Push text to ElevenLabs
                                         if (mode === 'elevenlabs') {
-                                            if (elevenLabsSocket && elevenLabsSocket.readyState === WebSocket.OPEN) {
+                                            if (!elevenLabsSocket && !socketConnecting) {
+                                                socketConnecting = true;
+                                                socketBuffer.push(dataPayload.chunk);
+                                                speak(null, lang, (socket) => {
+                                                    if (socket) {
+                                                        elevenLabsSocket = socket;
+                                                        // Buffer flush
+                                                        if (socketBuffer.length > 0) {
+                                                            socket.send(JSON.stringify({
+                                                                "text": socketBuffer.join(""),
+                                                                "try_trigger_generation": true
+                                                            }));
+                                                            socketBuffer = [];
+                                                        }
+                                                        // Stream close
+                                                        if (isStreamComplete) {
+                                                            socket.send(JSON.stringify({ "text": "" }));
+                                                        }
+                                                    }
+                                                });
+                                            } else if (elevenLabsSocket && elevenLabsSocket.readyState === WebSocket.OPEN) {
                                                 elevenLabsSocket.send(JSON.stringify({
                                                     "text": dataPayload.chunk,
                                                     "try_trigger_generation": true
