@@ -39,7 +39,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     os.environ["GOOGLE_API_KEY"] = GEMINI_API_KEY # Explicit env overwrite
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-flash-latest')
+    model = genai.GenerativeModel('gemini-3.1-flash-lite')
 else:
     print("WARNING: GEMINI_API_KEY not found in .env. Using mock fallback.")
     model = None
@@ -204,7 +204,7 @@ async def get_gemini_response(message: str, history: List[MessageCreate], sessio
         chat_history.append({"role": role, "parts": [msg.content]})
 
     sys_instr = get_system_instructions()
-    model_with_sys = genai.GenerativeModel('gemini-flash-latest', system_instruction=sys_instr)
+    model_with_sys = genai.GenerativeModel('gemini-3.1-flash-lite', system_instruction=sys_instr)
     
     # Append current user message
     chat_history.append({"role": "user", "parts": [message]})
@@ -297,7 +297,7 @@ async def chat_endpoint(request: ChatRequest):
             chat_history.append({"role": role, "parts": [msg.content]})
 
     sys_instr = get_system_instructions()
-    model_with_sys = genai.GenerativeModel('gemini-flash-latest', system_instruction=sys_instr)
+    model_with_sys = genai.GenerativeModel('gemini-3.1-flash-lite', system_instruction=sys_instr)
     
     # Append current user message
     if chat_history and chat_history[-1]["role"] == "user":
@@ -407,7 +407,7 @@ async def chat_completions(request: Request):
             "id": f"chatcmpl-{uuid.uuid4()}",
             "object": "chat.completion",
             "created": int(datetime.now().timestamp()),
-            "model": "gemini-flash-latest",
+            "model": "gemini-3.1-flash-lite",
             "choices": [{"index": 0, "message": {"role": "assistant", "content": response_text}, "finish_reason": "stop"}]
         }
 
@@ -423,7 +423,7 @@ async def chat_completions(request: Request):
 
         # Construct Gemini prompt with full conversational history
         sys_instr = get_system_instructions()
-        model_with_sys = genai.GenerativeModel('gemini-flash-latest', system_instruction=sys_instr)
+        model_with_sys = genai.GenerativeModel('gemini-3.1-flash-lite', system_instruction=sys_instr)
 
         chat_history = []
         for m in messages:
@@ -456,13 +456,13 @@ async def chat_completions(request: Request):
                         "id": cmpl_id,
                         "object": "chat.completion.chunk",
                         "created": created_time,
-                        "model": "gemini-flash-latest",
+                        "model": "gemini-3.1-flash-lite",
                         "choices": [{"index": 0, "delta": delta_payload, "finish_reason": None}]
                     }
                     yield f"data: {json.dumps(chunk_payload)}\n\n"
             
             # Final chunk
-            yield f"data: {json.dumps({'id': cmpl_id, 'object': 'chat.completion.chunk', 'created': created_time, 'model': 'gemini-flash-latest', 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]})}\n\n"
+            yield f"data: {json.dumps({'id': cmpl_id, 'object': 'chat.completion.chunk', 'created': created_time, 'model': 'gemini-3.1-flash-lite', 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]})}\n\n"
             yield "data: [DONE]\n\n"
 
             # Post-processing (Logging & Routing)
@@ -521,7 +521,7 @@ async def vapi_webhook(request: Request):
                     "model": {
                         "provider": "custom-llm",
                         "url": f"{base_url}/v1", 
-                        "model": "gemini-flash-latest",
+                        "model": "gemini-3.1-flash-lite",
                         "systemPrompt": get_system_instructions(),
                         "temperature": 0.7
                     },
