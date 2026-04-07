@@ -527,7 +527,7 @@ async def vapi_webhook(request: Request):
                     },
                     "voice": {
                         "provider": "elevenlabs",
-                        "voiceId": os.getenv("ELEVENLABS_VOICE_ID", "JrrE7QTGDmQKQuUnqk7H"),
+                        "voiceId": os.getenv("ELEVENLABS_VOICE_ID", "aTP4J5SJLQl74WTSRXKW"),
                         "model": "eleven_multilingual_v2",
                         "stability": 0.5,
                         "similarityBoost": 0.75
