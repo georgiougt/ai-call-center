@@ -548,7 +548,7 @@ async def vapi_webhook(request: Request):
                     },
                     "vapi": {
                         "vadSensitivity": 0.3,
-                        "endOfUtteranceDelay": 350
+                        "endOfUtteranceDelay": 500
                     }
                 }
             }
