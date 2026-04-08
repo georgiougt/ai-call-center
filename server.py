@@ -379,8 +379,9 @@ async def chat_endpoint(request: ChatRequest):
 
 # --- Vapi / OpenAI-Compatible Endpoints ---
 
+@app.post("/v1/chat/completions")
 @app.post("/v1/{call_id}/chat/completions")
-async def chat_completions(request: Request, call_id: str):
+async def chat_completions(request: Request, call_id: str = None):
     """OpenAI-compatible endpoint for Vapi's Custom LLM provider. Supports Streaming."""
     data = await request.json()
     logger.info(f"Vapi LLM Request: {json.dumps(data)[:200]}...") # Log first 200 chars
@@ -398,7 +399,11 @@ async def chat_completions(request: Request, call_id: str):
         role = "user" if m.get("role") == "user" else "model"
         history.append(MessageCreate(role=role, content=m.get("content", "")))
     
-    vapi_session_id = f"vapi-call-{call_id}"
+    if not call_id:
+        vapi_call = data.get("call", {})
+        call_id = vapi_call.get("id") or request.headers.get("x-vapi-call-id") or data.get("user")
+        
+    vapi_session_id = f"vapi-call-{call_id}" if call_id else f"vapi-{uuid.uuid4()}"
     
     if not stream_requested:
         # Non-streaming implementation
