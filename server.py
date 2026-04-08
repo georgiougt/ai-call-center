@@ -453,22 +453,49 @@ async def chat_completions(request: Request, call_id: str = None):
         try:
             is_first_chunk = True
             response_stream = await model_with_sys.generate_content_async(chat_history, stream=True)
+            text_buffer = ""
+            
             async for chunk in response_stream:
                 if chunk.text:
                     full_response_text += chunk.text
-                    delta_payload = {"content": chunk.text}
-                    if is_first_chunk:
-                        delta_payload["role"] = "assistant"
-                        is_first_chunk = False
+                    text_buffer += chunk.text
+                    
+                    if "TRANSFER" in text_buffer:
+                        # Find where TRANSFER starts and cut it
+                        idx = text_buffer.find("TRANSFER")
+                        safe_text = text_buffer[:idx].strip()
                         
-                    chunk_payload = {
-                        "id": cmpl_id,
-                        "object": "chat.completion.chunk",
-                        "created": created_time,
-                        "model": "gemini-3.1-flash-lite-preview",
-                        "choices": [{"index": 0, "delta": delta_payload, "finish_reason": None}]
-                    }
-                    yield f"data: {json.dumps(chunk_payload)}\n\n"
+                        if safe_text:
+                            delta_payload = {"content": safe_text}
+                            if is_first_chunk:
+                                delta_payload["role"] = "assistant"
+                                is_first_chunk = False
+                            yield f"data: {json.dumps({'id': cmpl_id, 'object': 'chat.completion.chunk', 'created': created_time, 'model': 'gemini-3.1-flash-lite-preview', 'choices': [{'index': 0, 'delta': delta_payload, 'finish_reason': None}]})}\n\n"
+                        
+                        # Stop yielding text, emit Vapi endCall tool
+                        yield f"data: {json.dumps({'id': cmpl_id, 'object': 'chat.completion.chunk', 'created': created_time, 'model': 'gemini-3.1-flash-lite-preview', 'choices': [{'index': 0, 'delta': {'tool_calls': [{'index': 0, 'id': f'call_{uuid.uuid4().hex[:8]}', 'type': 'function', 'function': {'name': 'endCall', 'arguments': '{}'}}]}, 'finish_reason': 'tool_calls'}]})}\n\n"
+                        
+                        text_buffer = ""
+                        break
+                    else:
+                        # Safety buffer for split chunks
+                        if len(text_buffer) > 15:
+                            safe_to_yield = text_buffer[:-15]
+                            text_buffer = text_buffer[-15:]
+                            
+                            delta_payload = {"content": safe_to_yield}
+                            if is_first_chunk:
+                                delta_payload["role"] = "assistant"
+                                is_first_chunk = False
+                                
+                            yield f"data: {json.dumps({'id': cmpl_id, 'object': 'chat.completion.chunk', 'created': created_time, 'model': 'gemini-3.1-flash-lite-preview', 'choices': [{'index': 0, 'delta': delta_payload, 'finish_reason': None}]})}\n\n"
+            
+            # Flush any remaining buffer if we reached end without TRANSFER
+            if text_buffer and "TRANSFER" not in text_buffer:
+                delta_payload = {"content": text_buffer}
+                if is_first_chunk:
+                    delta_payload["role"] = "assistant"
+                yield f"data: {json.dumps({'id': cmpl_id, 'object': 'chat.completion.chunk', 'created': created_time, 'model': 'gemini-3.1-flash-lite-preview', 'choices': [{'index': 0, 'delta': delta_payload, 'finish_reason': None}]})}\n\n"
             
             # Final chunk
             yield f"data: {json.dumps({'id': cmpl_id, 'object': 'chat.completion.chunk', 'created': created_time, 'model': 'gemini-3.1-flash-lite-preview', 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]})}\n\n"
@@ -556,7 +583,16 @@ async def vapi_webhook(request: Request):
                     "vapi": {
                         "vadSensitivity": 0.3,
                         "endOfUtteranceDelay": 500
-                    }
+                    },
+                    "tools": [{
+                        "type": "endCall",
+                        "messages": [
+                            {
+                                "type": "request-start",
+                                "content": " "
+                            }
+                        ]
+                    }]
                 }
             }
         
