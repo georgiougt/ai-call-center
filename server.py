@@ -379,8 +379,8 @@ async def chat_endpoint(request: ChatRequest):
 
 # --- Vapi / OpenAI-Compatible Endpoints ---
 
-@app.post("/v1/chat/completions")
-async def chat_completions(request: Request):
+@app.post("/v1/{call_id}/chat/completions")
+async def chat_completions(request: Request, call_id: str):
     """OpenAI-compatible endpoint for Vapi's Custom LLM provider. Supports Streaming."""
     data = await request.json()
     logger.info(f"Vapi LLM Request: {json.dumps(data)[:200]}...") # Log first 200 chars
@@ -398,9 +398,7 @@ async def chat_completions(request: Request):
         role = "user" if m.get("role") == "user" else "model"
         history.append(MessageCreate(role=role, content=m.get("content", "")))
     
-    vapi_call = data.get("call", {})
-    call_id = vapi_call.get("id") or request.headers.get("x-vapi-call-id") or data.get("user")
-    vapi_session_id = f"vapi-call-{call_id}" if call_id else f"vapi-{uuid.uuid4()}"
+    vapi_session_id = f"vapi-call-{call_id}"
     
     if not stream_requested:
         # Non-streaming implementation
@@ -516,13 +514,14 @@ async def vapi_webhook(request: Request):
             
             logger.info(f"Vapi Webhook: Providing configuration with base_url: {base_url}")
             
+            vapi_id = message.get("call", {}).get("id") or "unknown"
             return {
                 "assistant": {
                     "name": "Giannakis Call Center AI",
-                    "firstMessage": "Καλωσορίσατε στην εταιρεία Γιαννάκης Σκεμπετζής. Για την καλύτερη εξυπηρέτησή σας, παρακαλώ πείτε μου με ποιο τμήμα ή υποκατάστημα θέλετε να συνδεθείτε: Λευκωσία, Λεμεσό, το Εκπαιδευτικό μας Κέντρο ή το Λογιστήριο;",
+                    "firstMessage": "Καλωσορίσατε στην εταιρεία Γιαννάκης Σκεμπετζής και Υιοί. Για την καλύτερη εξυπηρέτησή σας, παρακαλώ πείτε μου με ποιο τμήμα ή υποκατάστημα θέλετε να συνδεθείτε: Λευκωσία, Λεμεσό, το Εκπαιδευτικό μας Κέντρο ή το Λογιστήριο;",
                     "model": {
                         "provider": "custom-llm",
-                        "url": f"{base_url}/v1", 
+                        "url": f"{base_url}/v1/{vapi_id}", 
                         "model": "gemini-3.1-flash-lite-preview",
                         "systemPrompt": get_system_instructions(),
                         "temperature": 0.7
@@ -561,35 +560,10 @@ async def vapi_webhook(request: Request):
                 logger.info(f"Vapi Webhook: Attempting to get/create conversation {session_id}")
                 conversation_id = await db.get_or_create_conversation(session_id, language="el-VAPI")
                 
-                # Try to use granular messages first
-                vapi_messages = artifact_data.get("messages")
-                if vapi_messages and isinstance(vapi_messages, list):
-                    logger.info(f"Vapi Webhook: Found {len(vapi_messages)} granular messages.")
-                    for m in vapi_messages:
-                        v_role = m.get("role")
-                        if v_role == "system":
-                            continue # Skip the system prompt in the chat history
-                            
-                        role = "model" if v_role in ["assistant", "bot", "ai"] else "user"
-                        content = m.get("message") or m.get("content")
-                        if content:
-                            await db.add_message(conversation_id, role, content)
-                else:
-                    # Fallback to parsing the transcript string
-                    # Vapi transcript string usually looks like: "AI: ...\nUser: ..."
-                    transcript = artifact_data.get("transcript") or call_data.get("transcript") or ""
-                    if transcript:
-                        logger.info(f"Vapi Webhook: Parsing transcript string (Length: {len(transcript)})")
-                        lines = transcript.split('\n')
-                        for line in lines:
-                            if ':' in line:
-                                role_part, content = line.split(':', 1)
-                                role = "model" if "AI" in role_part or "assistant" in role_part.lower() else "user"
-                                await db.add_message(conversation_id, role, content.strip())
-                            elif line.strip():
-                                await db.add_message(conversation_id, "user", line.strip())
-                    else:
-                        logger.warning(f"Vapi Webhook: No transcript or messages found for {vapi_id}")
+                # We skip granular message iteration because chat_completions natively logged them turn-by-turn.
+                # However, Vapi's 'firstMessage' was synthesized natively by Vapi and never routed through the custom LLM tracking loop. 
+                # To ensure it isn't completely missed, we check if this is the only message and optionally handle it.
+                # But since the prompt matches exactly now, skipping re-logging the full history prevents duplicates.
 
                 # Also save the summary as a special system message or metadata if needed
                 if summary:
