@@ -418,9 +418,13 @@ async def chat_completions(request: Request, call_id: str = None):
 
     # Streaming implementation for Vapi/OpenAI
     async def openai_stream_generator():
-        # Get or create conversation in DB for tracking
-        conversation_id = await db.get_or_create_conversation(vapi_session_id)
-        await db.add_message(conversation_id, "user", user_message)
+        # Kick off DB logging in the background IMMEDIATELY so it doesn't block TTFB
+        async def background_log_user_msg():
+            cid = await db.get_or_create_conversation(vapi_session_id)
+            await db.add_message(cid, "user", user_message)
+            return cid
+
+        db_task = asyncio.create_task(background_log_user_msg())
 
         full_response_text = ""
         cmpl_id = f"chatcmpl-{uuid.uuid4()}"
@@ -469,6 +473,9 @@ async def chat_completions(request: Request, call_id: str = None):
             # Final chunk
             yield f"data: {json.dumps({'id': cmpl_id, 'object': 'chat.completion.chunk', 'created': created_time, 'model': 'gemini-3.1-flash-lite-preview', 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]})}\n\n"
             yield "data: [DONE]\n\n"
+
+            # Wait for DB tracking task to finish securely
+            conversation_id = await db_task
 
             # Post-processing (Logging & Routing)
             await db.add_message(conversation_id, "model", full_response_text.strip())
