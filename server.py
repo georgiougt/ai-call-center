@@ -536,7 +536,8 @@ async def vapi_webhook(request: Request):
                         "voiceId": os.getenv("ELEVENLABS_VOICE_ID", "aTP4J5SJLQl74WTSRXKW"),
                         "model": "eleven_multilingual_v2",
                         "stability": 0.5,
-                        "similarityBoost": 0.75
+                        "similarityBoost": 0.75,
+                        "optimizeStreamingLatency": 3
                     },
                     "transcriber": {
                         "provider": "deepgram",
@@ -547,7 +548,7 @@ async def vapi_webhook(request: Request):
                     },
                     "vapi": {
                         "vadSensitivity": 0.3,
-                        "endOfUtteranceDelay": 800
+                        "endOfUtteranceDelay": 350
                     }
                 }
             }
