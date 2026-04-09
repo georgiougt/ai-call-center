@@ -440,7 +440,11 @@ async def chat_completions(request: Request, call_id: str = None):
                 continue
             
             r = "user" if m.get("role") == "user" else "model"
-            content = m.get("content", "")
+            content = m.get("content", "").strip()
+            
+            # Gemini strictly forbids empty text parts. Provide a placeholder for ambient noise turns.
+            if not content:
+                content = "[Σιωπή / Δεν ανιχνεύτηκε καθαρή ομιλία]"
             
             if chat_history and chat_history[-1]["role"] == r:
                 chat_history[-1]["parts"][0] += f"\n{content}"
